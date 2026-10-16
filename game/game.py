@@ -20,8 +20,9 @@ from game.plugins import LuaPluginManager
 from game.utils import Distance
 from . import naming
 from .ato.flighttype import FlightType
+from .campaignevents import CampaignEventKind
 from .campaignloader import CampaignAirWingConfig
-from .campaignprogression import CampaignProgression
+from .campaignprogression import CampaignProgression, CampaignProgressionResult
 from .coalition import Coalition
 from .db.gamedb import GameDb
 from .infos.information import Information
@@ -178,6 +179,15 @@ class Game:
             forced_time=forced_time,
         )
 
+    def generate_conditions_at(self, at: datetime) -> Conditions:
+        return Conditions.generate(
+            self.theater,
+            at.date(),
+            from_datetime(at, self.theater.terrain),
+            self.settings,
+            forced_time=at.time(),
+        )
+
     @staticmethod
     def sanitize_sides(player_faction: Faction, enemy_faction: Faction) -> None:
         """
@@ -222,6 +232,56 @@ class Game:
 
     def adjust_budget(self, amount: float, player: bool) -> None:
         self.coalition_for(player).adjust_budget(amount)
+
+    def advance_campaign_time(
+        self,
+        time: datetime,
+        events: GameUpdateEvents,
+        *,
+        allow_ato_replan: bool,
+    ) -> CampaignProgressionResult:
+        progression = self.campaign_progression.advance_to(
+            time,
+            self.settings.continuous_ato_replan_interval,
+        )
+        replan_requested = False
+        for event in progression.events:
+            if event.kind is CampaignEventKind.LOGISTICS:
+                self._process_periodic_logistics(event.due_at)
+            elif event.kind is CampaignEventKind.INCOME:
+                for coalition in self.coalitions:
+                    coalition.accrue_income()
+            elif event.kind is CampaignEventKind.WEATHER:
+                self.conditions = self.generate_conditions_at(event.due_at)
+            elif event.kind is CampaignEventKind.FRONT_LINE:
+                self._process_periodic_front_lines(events)
+            elif event.kind is CampaignEventKind.ATO_REPLAN:
+                replan_requested = True
+
+        if replan_requested and allow_ato_replan:
+            self.blue.plan_missions(time)
+            self.red.plan_missions(time)
+            events.begin_new_turn()
+        return progression
+
+    def _process_periodic_logistics(self, time: datetime) -> None:
+        for coalition in self.coalitions:
+            coalition.update_transit_network()
+            coalition.transfers.perform_transfers()
+
+        for control_point in self.theater.controlpoints:
+            control_point.ground_unit_orders.process(self, time)
+
+        for coalition in self.coalitions:
+            coalition.air_wing.process_periodic_replenishment()
+            coalition.transfers.plan_transports(time)
+
+    def _process_periodic_front_lines(self, events: GameUpdateEvents) -> None:
+        for control_point in self.theater.player_points():
+            for front_line in control_point.front_lines.values():
+                front_line.update_position()
+                events.update_front_line(front_line)
+            control_point.base.affect_strength(+PLAYER_BASE_STRENGTH_RECOVERY)
 
     def on_load(self, game_still_initializing: bool = False) -> None:
         from .sim import GameUpdateEvents
@@ -287,38 +347,30 @@ class Game:
         # since the coalition-specific finalization handles transit network updates and
         # transfer processing. If in the other order, units may be delivered to captured
         # bases, and freshly delivered units will spawn one leg through their journey.
-        include_income = not self.settings.turnless_mode
-        self.blue.end_turn(include_income=include_income)
-        self.red.end_turn(include_income=include_income)
+        process_legacy_periodic_systems = not self.settings.turnless_mode
+        self.blue.end_turn(
+            include_income=process_legacy_periodic_systems,
+            include_periodic_systems=process_legacy_periodic_systems,
+        )
+        self.red.end_turn(
+            include_income=process_legacy_periodic_systems,
+            include_periodic_systems=process_legacy_periodic_systems,
+        )
 
-        for control_point in self.theater.controlpoints:
-            control_point.process_turn(self)
+        if process_legacy_periodic_systems:
+            for control_point in self.theater.controlpoints:
+                control_point.process_turn(self)
 
-        if not skipped:
-            for cp in self.theater.player_points():
-                for front_line in cp.front_lines.values():
-                    front_line.update_position()
-                    events.update_front_line(front_line)
-                cp.base.affect_strength(+PLAYER_BASE_STRENGTH_RECOVERY)
+            if not skipped:
+                self._process_periodic_front_lines(events)
 
         # We don't actually advance time or change the conditions between turn 0 and
         # turn 1.
-        if self.turn > 1:
+        if self.turn > 1 and process_legacy_periodic_systems:
             self.conditions = self.generate_conditions()
-            if self.settings.turnless_mode:
-                self.simulation_time = max(
-                    self.simulation_time, self.conditions.start_time
-                )
-            else:
-                self.simulation_time = self.conditions.start_time
+            self.simulation_time = self.conditions.start_time
 
-        if self.settings.turnless_mode:
-            self.campaign_progression.advance_to(
-                self.coalitions,
-                self.simulation_time,
-                self.settings.continuous_ato_replan_interval,
-            )
-        else:
+        if process_legacy_periodic_systems:
             self.campaign_progression.synchronize(self.simulation_time)
 
     def begin_turn_0(self) -> None:
@@ -483,11 +535,15 @@ class Game:
 
     @property
     def current_turn_time_of_day(self) -> TimeOfDay:
+        if self.settings.turnless_mode and hasattr(self, "simulation_time"):
+            return from_datetime(self.simulation_time, self.theater.terrain)
         tod_turn = max(0, self.turn - 1) + self.time_of_day_offset_for_start_time
         return list(TimeOfDay)[tod_turn % 4]
 
     @property
     def current_day(self) -> date:
+        if self.settings.turnless_mode and hasattr(self, "simulation_time"):
+            return self.simulation_time.date()
         return self.date + timedelta(days=self.turn // 4)
 
     def next_unit_id(self) -> int:

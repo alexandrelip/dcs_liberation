@@ -65,6 +65,31 @@ def test_reset_clears_turnaround_state() -> None:
     assert squadron.aircraft_in_turnaround == []
 
 
+def test_turnless_reset_preserves_turnaround_state() -> None:
+    squadron = squadron_with_inventory(owned=4, untasked=1)
+    ready_at = NOW + timedelta(hours=1)
+    squadron.aircraft_in_turnaround = [ready_at]
+    squadron.current_roster = []
+
+    squadron.return_all_pilots_and_aircraft(preserve_turnaround=True)
+
+    assert squadron.untasked_aircraft == 3
+    assert squadron.aircraft_in_turnaround == [ready_at]
+
+
+def test_delivered_aircraft_are_immediately_untasked() -> None:
+    squadron = squadron_with_inventory(owned=4, untasked=1)
+    squadron.pending_deliveries = 2
+    squadron.location = Mock()
+    squadron.location.unclaimed_parking.return_value = 10
+
+    squadron.deliver_orders()
+
+    assert squadron.owned_aircraft == 6
+    assert squadron.untasked_aircraft == 3
+    assert squadron.pending_deliveries == 0
+
+
 def test_old_squadron_save_gets_empty_turnaround_state() -> None:
     squadron: Squadron = object.__new__(Squadron)
 

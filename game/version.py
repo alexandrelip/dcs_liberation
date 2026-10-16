@@ -2,7 +2,7 @@ from pathlib import Path
 
 MAJOR_VERSION = 15
 MINOR_VERSION = 0
-MICRO_VERSION = 1
+MICRO_VERSION = 2
 VERSION_NUMBER = ".".join(str(v) for v in (MAJOR_VERSION, MINOR_VERSION, MICRO_VERSION))
 
 

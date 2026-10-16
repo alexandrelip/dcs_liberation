@@ -50,12 +50,11 @@ class MissionSimulation:
         self.game.simulation_time = self.time
         if self.completed:
             raise RuntimeError("Simulation already completed")
-        progression = None
         if self.game.settings.turnless_mode:
-            progression = self.game.campaign_progression.advance_to(
-                self.game.coalitions,
+            self.game.advance_campaign_time(
                 self.time,
-                self.game.settings.continuous_ato_replan_interval,
+                events,
+                allow_ato_replan=not force_continue,
             )
         if (
             self.game.settings.fast_forward_stop_condition
@@ -82,14 +81,6 @@ class MissionSimulation:
             events, self.time, TICK, combat_resolution_method, force_continue
         )
         self.control_point_simulation.on_game_tick(events, self.time)
-        if (
-            progression is not None
-            and progression.ato_replan_periods
-            and not force_continue
-        ):
-            self.game.blue.plan_missions(self.time)
-            self.game.red.plan_missions(self.time)
-            events.begin_new_turn()
         self.completed = events.simulation_complete
         return events
 

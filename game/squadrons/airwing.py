@@ -136,9 +136,15 @@ class AirWing:
         for squadron in self.iter_squadrons():
             squadron.end_turn()
 
-    def reset(self) -> None:
+    def process_periodic_replenishment(self) -> None:
         for squadron in self.iter_squadrons():
-            squadron.return_all_pilots_and_aircraft()
+            squadron.process_periodic_replenishment()
+
+    def reset(self, *, preserve_turnaround: bool = False) -> None:
+        for squadron in self.iter_squadrons():
+            squadron.return_all_pilots_and_aircraft(
+                preserve_turnaround=preserve_turnaround
+            )
 
     def release_ready_aircraft(self, time: datetime) -> int:
         return sum(

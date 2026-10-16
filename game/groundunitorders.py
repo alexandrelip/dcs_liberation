@@ -62,6 +62,7 @@ class GroundUnitOrders:
                 "reinforcements. Refunding purchase price."
             )
             self.refund_all(coalition)
+            return
 
         bought_units: dict[GroundUnitType, int] = {}
         units_needing_transfer: dict[GroundUnitType, int] = {}

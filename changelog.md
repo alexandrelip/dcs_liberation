@@ -1,3 +1,21 @@
+# 15.0.2
+
+Saves from 15.0.1 are compatible with 15.0.2.
+
+## Features/Improvements
+
+* **[Campaign]** Added a persistent strategic event queue with deterministic time, priority, and insertion ordering.
+* **[Campaign]** Turn-less campaigns now process transfer progress, ground and aircraft deliveries, pilot replenishment, weather, and front-line recovery every six campaign hours.
+* **[Campaign]** Turn-less campaign calendar and time-of-day calculations now follow simulation time instead of the legacy turn counter.
+* **[Campaign]** Existing 15.0.1 campaign progression state is migrated into the strategic event queue on load.
+
+## Fixes
+
+* **[Campaign]** Aircraft delivered during a continuous campaign period are immediately available for tasking.
+* **[Campaign]** Reinitializing a turn-less ATO no longer clears aircraft turnaround timers.
+* **[Campaign]** Ground-unit orders that lose their reinforcement source are refunded without continuing into invalid transfer creation.
+* **[Campaign]** Manually ending a turn-less turn no longer duplicates periodic logistics, weather, front-line, or income processing.
+
 # 15.0.1
 
 Saves from 15.0.0 are compatible with 15.0.1.

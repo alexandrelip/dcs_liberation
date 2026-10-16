@@ -178,6 +178,9 @@ class Squadron:
     def end_turn(self) -> None:
         if self.destination is not None:
             self.relocate_to(self.destination)
+        self.process_periodic_replenishment()
+
+    def process_periodic_replenishment(self) -> None:
         self.replenish_lost_pilots()
         self.deliver_orders()
 
@@ -185,10 +188,13 @@ class Squadron:
         if self.pilot_limits_enabled and self.replenish_count > 0:
             self._recruit_pilots(self.replenish_count)
 
-    def return_all_pilots_and_aircraft(self) -> None:
+    def return_all_pilots_and_aircraft(
+        self, *, preserve_turnaround: bool = False
+    ) -> None:
         self.available_pilots = list(self.active_pilots)
-        self.aircraft_in_turnaround.clear()
-        self.untasked_aircraft = self.owned_aircraft
+        if not preserve_turnaround:
+            self.aircraft_in_turnaround.clear()
+        self.untasked_aircraft = self.owned_aircraft - len(self.aircraft_in_turnaround)
 
     @staticmethod
     def send_on_leave(pilot: Pilot) -> None:
@@ -344,7 +350,9 @@ class Squadron:
 
     def deliver_orders(self) -> None:
         self.cancel_overflow_orders()
-        self.owned_aircraft += self.pending_deliveries
+        delivered = self.pending_deliveries
+        self.owned_aircraft += delivered
+        self.untasked_aircraft += delivered
         self.pending_deliveries = 0
 
     def relocate_to(self, destination: ControlPoint) -> None:

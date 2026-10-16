@@ -152,26 +152,34 @@ class Coalition:
         self.budget += income
         return income
 
-    def end_turn(self, *, include_income: bool = True) -> None:
+    def end_turn(
+        self,
+        *,
+        include_income: bool = True,
+        include_periodic_systems: bool = True,
+    ) -> None:
         """Processes coalition-specific turn finalization.
 
         For more information on turn finalization in general, see the documentation for
         `Game.finish_turn`.
         """
-        self.air_wing.end_turn()
+        if include_periodic_systems:
+            self.air_wing.end_turn()
         if include_income:
             self.accrue_income()
 
         # Need to recompute before transfers and deliveries to account for captures.
         # This happens in in initialize_turn as well, because cheating doesn't advance a
         # turn but can capture bases so we need to recompute there as well.
-        self.update_transit_network()
+        if include_periodic_systems:
+            self.update_transit_network()
 
         # Must happen *before* unit deliveries are handled, or else new units will spawn
         # one hop ahead. ControlPoint.process_turn handles unit deliveries. The
         # coalition-specific turn-end happens before the theater-wide turn-end, so this
         # is handled correctly.
-        self.transfers.perform_transfers()
+        if include_periodic_systems:
+            self.transfers.perform_transfers()
 
         self.callsign_generator.reset()
 
@@ -190,7 +198,7 @@ class Coalition:
         """
         # Needs to happen *before* planning transfers so we don't cancel them.
         self.ato.clear()
-        self.air_wing.reset()
+        self.air_wing.reset(preserve_turnaround=self.game.settings.turnless_mode)
         self.refund_outstanding_orders()
         self.procurement_requests.clear()
 

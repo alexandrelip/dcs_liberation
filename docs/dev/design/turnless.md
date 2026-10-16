@@ -106,10 +106,13 @@ rather than freezing all other development or branching and a painful merge.
 
 ### Phase-one implementation status
 
-Turnless mode now advances a persistent campaign progression clock while
-strategic simulation time moves. The first time-based systems are:
+Turnless mode now advances a persistent campaign progression clock and
+deterministically ordered event queue while strategic simulation time moves.
+The time-based systems are:
 
 - coalition income paid for each completed six-hour campaign period;
+- transfer progress, deliveries, and pilot replenishment every six hours;
+- weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
 
