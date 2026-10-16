@@ -118,6 +118,8 @@ The time-based systems are:
 - DCS-exported aircraft position, altitude, fuel, health, airborne state, and
   aggregate ammunition;
 - damage-adjusted aircraft turnaround;
+- periodic invalidation of impossible unlaunched packages;
+- automatic two-aircraft QRA within 100 NM of threatened friendly bases;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
@@ -138,6 +140,12 @@ snapshot is invalidated and the flight-plan estimate becomes authoritative.
 Damage affects maintenance duration but cannot be reproduced visually in a
 generated mission. Aggregate ammunition is retained for later logistics work;
 individual pylon reconstruction is not yet supported.
+
+Reactive ATO updates preserve every package that has begun execution. Unlaunched
+packages are removed when their target, ownership, or departure runway makes
+them impossible, allowing the theater commander to replace them. QRA currently
+uses proximity rather than sensor-level detection, and airborne retasking
+remains future work.
 
 ### Front-line progress rework
 

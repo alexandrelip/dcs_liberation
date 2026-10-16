@@ -24,6 +24,7 @@ from .campaignevents import CampaignEventKind
 from .campaignloader import CampaignAirWingConfig
 from .campaignprogression import CampaignProgression, CampaignProgressionResult
 from .coalition import Coalition
+from .commander.reactiveato import ReactiveAto
 from .db.gamedb import GameDb
 from .ground_forces.continuouscombat import ContinuousGroundWar
 from .infos.information import Information
@@ -271,6 +272,10 @@ class Game:
                 replan_requested = True
 
         if replan_requested and allow_ato_replan:
+            ReactiveAto.prune_invalid_packages(self, self.blue, events)
+            ReactiveAto.prune_invalid_packages(self, self.red, events)
+            ReactiveAto.plan_interceptions(self, self.blue, time)
+            ReactiveAto.plan_interceptions(self, self.red, time)
             self.blue.plan_missions(time)
             self.red.plan_missions(time)
             events.begin_new_turn()

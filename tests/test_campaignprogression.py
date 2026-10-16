@@ -230,6 +230,10 @@ def event_game(
     )
     game.blue = Mock()
     game.red = Mock()
+    game.blue.ato.packages = []
+    game.red.ato.packages = []
+    game.blue.opponent = game.red
+    game.red.opponent = game.blue
     game.theater = Mock()
     return game, game.campaign_progression, game.blue, game.red
 

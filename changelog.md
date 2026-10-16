@@ -1,3 +1,25 @@
+# 15.3.0
+
+Saves from 15.2.0 are compatible with 15.3.0.
+
+## Features/Improvements
+
+* **[Campaign]** Periodic turn-less ATO planning now prunes impossible unlaunched packages before asking the theater commander for replacements.
+* **[Campaign]** Packages are invalidated when their target is destroyed, target ownership changes, departure ownership changes, or a required fixed-wing runway becomes unavailable.
+* **[Campaign]** Added automatic two-aircraft QRA interception packages when hostile airborne flights approach within 100 NM of an operational friendly control point.
+* **[Campaign]** Existing interception coverage prevents duplicate QRA packages against the same control point.
+* **[Campaign]** Unlaunched QRA packages are cancelled when no hostile aircraft remain within the defended area.
+
+## Fixes
+
+* **[Campaign]** Reactive cancellation is limited to packages whose flights are all still cancelable; missions already in progress are never deleted.
+* **[Campaign]** Cancelling a reactive package streams flight deletion events and returns its pilots and aircraft through the existing ATO ownership path.
+
+## Known limitations
+
+* QRA detection currently uses a 100 NM proximity radius rather than radar line-of-sight, detection probability, or identification state.
+* Reactive planning can create and cancel packages but cannot retask an airborne package to a different objective.
+
 # 15.2.0
 
 Saves from 15.1.0 are compatible with 15.2.0.
