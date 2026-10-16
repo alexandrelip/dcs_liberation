@@ -16,6 +16,51 @@ killed_ground_units = {} -- keep track of static ground object deaths
 unit_hit_point_updates = {} -- stores updates to unit hit points, triggered by S_EVENT_HIT
 mission_ended = false
 
+local function collect_aircraft_states()
+    local aircraft_states = {}
+    local sides = {coalition.side.BLUE, coalition.side.RED}
+    local categories = {Group.Category.AIRPLANE, Group.Category.HELICOPTER}
+    for _, side in ipairs(sides) do
+        for _, category in ipairs(categories) do
+            local groups = coalition.getGroups(side, category)
+            if groups then
+                for _, group in ipairs(groups) do
+                    local units = group:getUnits()
+                    for _, unit in ipairs(units) do
+                        if unit:isExist() then
+                            local success, state = pcall(function()
+                                local point = unit:getPoint()
+                                local ammo_remaining = 0
+                                local ammo = unit:getAmmo()
+                                if ammo then
+                                    for _, store in ipairs(ammo) do
+                                        ammo_remaining = ammo_remaining + (store.count or 0)
+                                    end
+                                end
+                                return {
+                                    ["name"] = unit:getName(),
+                                    ["x"] = point.x,
+                                    ["y"] = point.z,
+                                    ["altitude"] = point.y,
+                                    ["fuel_fraction"] = unit:getFuel(),
+                                    ["life"] = unit:getLife(),
+                                    ["life_initial"] = unit:getLife0(),
+                                    ["in_air"] = unit:inAir(),
+                                    ["ammo_remaining"] = ammo_remaining
+                                }
+                            end)
+                            if success then
+                                aircraft_states[#aircraft_states + 1] = state
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return aircraft_states
+end
+
 local function ends_with(str, ending)
    return ending == "" or str:sub(-#ending) == ending
 end
@@ -29,6 +74,7 @@ local function messageAll(message)
 end
 
 function write_state()
+    simulation_time_seconds = timer.getTime()
     if not mission_ended and simulation_time_seconds - last_write_simulation_time_seconds < WRITESTATE_SCHEDULE_IN_SECONDS then
         return nil
     end
@@ -49,6 +95,7 @@ function write_state()
         ["destroyed_objects_positions"] = destroyed_objects_positions,
 		["killed_ground_units"] = killed_ground_units,
 		["unit_hit_point_updates"] = unit_hit_point_updates,
+		["aircraft_states"] = collect_aircraft_states(),
 		["simulation_time_seconds"] = simulation_time_seconds
     }
     if not json then

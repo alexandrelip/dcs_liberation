@@ -1,5 +1,6 @@
 import logging
 import random
+from copy import copy
 from typing import Any, Union
 
 from dcs import Mission
@@ -133,9 +134,16 @@ class FlightGroupSpawner:
         assert isinstance(self.flight.state, InFlight)
         name = namegen.next_aircraft_name(self.country, self.flight)
         speed = self.flight.state.estimate_speed()
-        pos = self.flight.state.estimate_position()
-        pos += Vector2(random.randint(100, 1000), random.randint(100, 1000))
-        alt, alt_type = self.flight.state.estimate_altitude()
+        if self.flight.persisted_position is None:
+            pos = self.flight.state.estimate_position()
+            pos += Vector2(random.randint(100, 1000), random.randint(100, 1000))
+        else:
+            pos = copy(self.flight.persisted_position)
+        if self.flight.persisted_altitude is None:
+            alt, alt_type = self.flight.state.estimate_altitude()
+        else:
+            alt = meters(self.flight.persisted_altitude)
+            alt_type = "BARO"
 
         # We don't know where the ground is, so just make sure that any aircraft
         # spawning at an MSL altitude is spawned at some minimum altitude.

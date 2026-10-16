@@ -258,7 +258,9 @@ class FlightGroupConfigurator:
             pylon.equip(unit, weapon)
 
     def setup_fuel(self) -> None:
-        fuel = self.flight.state.estimate_fuel()
+        fuel = self.flight.persisted_fuel
+        if fuel is None:
+            fuel = self.flight.state.estimate_fuel()
         if fuel < 0:
             logging.warning(
                 f"Flight {self.flight} is estimated to have no fuel at mission start. "
@@ -267,7 +269,9 @@ class FlightGroupConfigurator:
             )
             fuel = 100
         for unit, pilot in zip(self.group.units, self.flight.roster.iter_pilots()):
-            if pilot is not None and pilot.player:
+            if self.flight.persisted_fuel is not None:
+                unit.fuel = fuel
+            elif pilot is not None and pilot.player:
                 unit.fuel = fuel
             elif (max_takeoff_fuel := self.flight.max_takeoff_fuel()) is not None:
                 unit.fuel = max_takeoff_fuel

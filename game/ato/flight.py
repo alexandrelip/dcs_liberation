@@ -85,6 +85,12 @@ class Flight(SidcDescribable):
 
         # Used for simulating the travel to first contact.
         self.state: FlightState = Uninitialized(self, squadron.settings)
+        self.persisted_position: Point | None = None
+        self.persisted_altitude: float | None = None
+        self.persisted_fuel: float | None = None
+        self.persisted_health_fraction = 1.0
+        self.persisted_ammo_remaining: int | None = None
+        self.persisted_state_time: datetime | None = None
 
         # Will be replaced with a more appropriate FlightPlan later, but start with a
         # cheaply constructed one since adding more flights to the package may affect
@@ -92,6 +98,15 @@ class Flight(SidcDescribable):
         from .flightplans.flightplanbuildertypes import FlightPlanBuilderTypes
 
         self._flight_plan_builder = FlightPlanBuilderTypes.for_flight(self)(self)
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        state.setdefault("persisted_position", None)
+        state.setdefault("persisted_altitude", None)
+        state.setdefault("persisted_fuel", None)
+        state.setdefault("persisted_health_fraction", 1.0)
+        state.setdefault("persisted_ammo_remaining", None)
+        state.setdefault("persisted_state_time", None)
+        self.__dict__.update(state)
 
     @property
     def flight_plan(self) -> FlightPlan[Any]:
@@ -234,7 +249,16 @@ class Flight(SidcDescribable):
     def on_game_tick(
         self, events: GameUpdateEvents, time: datetime, duration: timedelta
     ) -> None:
+        if self.persisted_state_time is not None and time > self.persisted_state_time:
+            self.persisted_position = None
+            self.persisted_altitude = None
+            self.persisted_fuel = None
+            self.persisted_state_time = None
         self.state.on_game_tick(events, time, duration)
+
+    def turnaround_time(self, standard_turnaround: timedelta) -> timedelta:
+        damage = 1.0 - max(0.0, min(1.0, self.persisted_health_fraction))
+        return standard_turnaround * (1.0 + 2.0 * damage)
 
     def should_halt_sim(self) -> bool:
         return self.state.should_halt_sim()

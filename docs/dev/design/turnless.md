@@ -115,6 +115,9 @@ The time-based systems are:
 - route-length-based convoy and cargo-ship ETAs checked every five minutes;
 - airlift delivery when the transport flight completes its planned route;
 - deterministic stance- and force-based ground attrition every 30 minutes;
+- DCS-exported aircraft position, altitude, fuel, health, airborne state, and
+  aggregate ammunition;
+- damage-adjusted aircraft turnaround;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
@@ -128,6 +131,13 @@ Continuous ground combat updates losses and FLOT position but deliberately does
 not capture control points yet. Capture requires additional handling for
 retreating units, aircraft, ground-object ownership, IADS, and mission
 invalidation.
+
+Exact survivor position, altitude, and fuel are used when another mission is
+generated immediately. If strategic simulation advances again, the exact
+snapshot is invalidated and the flight-plan estimate becomes authoritative.
+Damage affects maintenance duration but cannot be reproduced visually in a
+generated mission. Aggregate ammunition is retained for later logistics work;
+individual pylon reconstruction is not yet supported.
 
 ### Front-line progress rework
 

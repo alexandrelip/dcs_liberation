@@ -138,6 +138,7 @@ def test_completed_flight_uses_turnaround_only_in_turnless_mode(
         cargo=None,
     )
     flight.should_halt_sim.return_value = False
+    flight.turnaround_time.return_value = turnaround_time
     package.flights = [flight]
 
     blue = Mock()
@@ -185,6 +186,7 @@ def test_all_completed_flights_are_removed_from_mutating_package() -> None:
     ]
     for flight in flights:
         flight.should_halt_sim.return_value = False
+        flight.turnaround_time.return_value = timedelta(hours=1)
     package.flights = flights.copy()
     package.remove_flight.side_effect = (
         lambda flight, aircraft_available_at: package.flights.remove(flight)

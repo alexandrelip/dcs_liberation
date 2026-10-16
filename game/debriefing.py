@@ -132,6 +132,39 @@ class FlyingUnitHitPointUpdate(UnitHitpointUpdate):
         return not self.unit.flight.departure.captured
 
 
+@dataclass(frozen=True)
+class AircraftMissionState:
+    unit: FlyingUnit
+    x: float
+    y: float
+    altitude: float
+    fuel_fraction: float
+    health_fraction: float
+    in_air: bool
+    ammo_remaining: int
+
+    @classmethod
+    def from_json(
+        cls, data: dict[str, Any], unit_map: UnitMap
+    ) -> AircraftMissionState | None:
+        unit = unit_map.flight(data["name"])
+        if unit is None:
+            return None
+        initial_life = float(data.get("life_initial", 0))
+        life = float(data.get("life", initial_life))
+        health_fraction = life / initial_life if initial_life > 0 else 1.0
+        return cls(
+            unit=unit,
+            x=float(data["x"]),
+            y=float(data["y"]),
+            altitude=float(data["altitude"]),
+            fuel_fraction=max(0.0, min(1.0, float(data["fuel_fraction"]))),
+            health_fraction=max(0.0, min(1.0, health_fraction)),
+            in_air=bool(data["in_air"]),
+            ammo_remaining=max(0, int(data.get("ammo_remaining", 0))),
+        )
+
+
 @dataclass
 class TheaterUnitHitPointUpdate(UnitHitpointUpdate):
     unit: TheaterUnitMapping
@@ -213,6 +246,9 @@ class StateData:
     # {"name": "<damaged unit name>", "hit_points": <hit points as float>}
     unit_hit_point_updates: List[dict[str, Any]]
 
+    #: State of surviving aircraft at the most recent state export.
+    aircraft_states: List[dict[str, Any]]
+
     @classmethod
     def from_json(cls, data: Dict[str, Any], unit_map: UnitMap) -> StateData:
         def clean_unit_list(unit_list: List[Any]) -> List[str]:
@@ -254,6 +290,7 @@ class StateData:
             destroyed_statics=data["destroyed_objects_positions"],
             base_capture_events=data["base_capture_events"],
             unit_hit_point_updates=data["unit_hit_point_updates"],
+            aircraft_states=data.get("aircraft_states", []),
         )
 
 
@@ -504,6 +541,14 @@ class Debriefing:
                 continue
             damaged_units.append(unit)
         return damaged_units
+
+    def aircraft_mission_states(self) -> list[AircraftMissionState]:
+        states = []
+        for unit_data in self.state_data.aircraft_states:
+            state = AircraftMissionState.from_json(unit_data, self.unit_map)
+            if state is not None:
+                states.append(state)
+        return states
 
     def base_capture_events(self) -> List[BaseCaptureEvent]:
         """Keeps only the last instance of a base capture event for each base ID."""

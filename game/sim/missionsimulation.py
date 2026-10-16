@@ -114,8 +114,10 @@ class MissionSimulation:
             )
 
         self.game.save_last_turn_state()
-        MissionResultsProcessor(self.game).commit(debriefing, events)
+        results_processor = MissionResultsProcessor(self.game)
+        results_processor.commit(debriefing, events)
         if self.game.settings.turnless_mode:
+            results_processor.commit_aircraft_mission_states(debriefing)
             # Set completed to False to clear completion of any previous simulation tick.
             self.completed = False
             # If running in turnless mode, run sim to calculate planned positions of flights
@@ -127,6 +129,7 @@ class MissionSimulation:
                 # Always skip combat as we are processing results from DCS. Any combat has already
                 # been resolved in-game
                 self.tick(events, CombatResolutionMethod.SKIP, force_continue=True)
+            results_processor.commit_aircraft_mission_states(debriefing)
             self.game.blue.plan_missions(self.game.simulation_time)
             self.game.red.plan_missions(self.game.simulation_time)
             self.game.game_stats.update(self.game)

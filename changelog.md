@@ -1,3 +1,27 @@
+# 15.2.0
+
+Saves from 15.1.0 are compatible with 15.2.0.
+
+## Features/Improvements
+
+* **[Campaign]** DCS state export now records surviving aircraft position, altitude, fuel fraction, health fraction, airborne state, and aggregate remaining ammunition.
+* **[Campaign]** Airborne flights can respawn in the next generated mission at their last DCS position, altitude, and fuel state.
+* **[Campaign]** Partial aircraft damage now extends turnaround time, up to three times the configured base servicing duration.
+* **[Campaign]** Exact DCS spawn state is automatically invalidated when additional strategic fast-forward makes route estimates authoritative again.
+* **[Campaign]** Old state exports without aircraft snapshots and old saves without sortie-state fields remain compatible.
+
+## Fixes
+
+* **[Campaign]** State export simulation time is now updated from the DCS mission timer on every scheduled write, even when no world event occurred.
+* **[Campaign]** AI aircraft use persisted fuel when continuing an airborne sortie instead of being refilled by mission generation.
+* **[Campaign]** Aircraft health is applied before strategic replay so maintenance duration reflects damage, while exact navigation state is reapplied after replay.
+
+## Known limitations
+
+* DCS aggregate ammunition is recorded for campaign state and future logistics work, but individual pylon reconstruction is not yet available.
+* Partial aircraft damage affects maintenance but cannot be recreated visually in a generated `.miz`.
+* Continued flights retain estimated speed and route state because DCS state export does not provide a stable mission-planning representation for them.
+
 # 15.1.0
 
 Saves from 15.0.3 are compatible with 15.1.0.

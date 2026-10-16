@@ -92,8 +92,8 @@ class AircraftSimulation:
                     self.game.settings.turnless_mode
                     and self.game.settings.aircraft_turnaround_time > timedelta()
                 ):
-                    aircraft_available_at = (
-                        time + self.game.settings.aircraft_turnaround_time
+                    aircraft_available_at = time + flight.turnaround_time(
+                        self.game.settings.aircraft_turnaround_time
                     )
                 flight.package.remove_flight(
                     flight, aircraft_available_at=aircraft_available_at

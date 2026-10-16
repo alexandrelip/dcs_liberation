@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from collections import defaultdict
 from typing import TYPE_CHECKING
 
 from game.debriefing import Debriefing
@@ -37,6 +38,40 @@ class MissionResultsProcessor:
         self.commit_front_line_battle_impact(debriefing, events)
         self.commit_unit_damage(debriefing)
         self.record_carcasses(debriefing)
+
+    def commit_aircraft_mission_states(self, debriefing: Debriefing) -> None:
+        states_by_flight = defaultdict(list)
+        for state in debriefing.aircraft_mission_states():
+            states_by_flight[state.unit.flight].append(state)
+
+        for flight, states in states_by_flight.items():
+            airborne = [state for state in states if state.in_air]
+            if airborne:
+                count = len(airborne)
+                flight.persisted_position = self.game.point_in_world(
+                    sum(state.x for state in airborne) / count,
+                    sum(state.y for state in airborne) / count,
+                )
+                flight.persisted_altitude = (
+                    sum(state.altitude for state in airborne) / count
+                )
+                fuel_fraction = sum(state.fuel_fraction for state in airborne) / count
+                flight.persisted_fuel = (
+                    flight.unit_type.dcs_unit_type.fuel_max * fuel_fraction
+                )
+                flight.persisted_state_time = self.game.simulation_time
+            else:
+                flight.persisted_position = None
+                flight.persisted_altitude = None
+                flight.persisted_fuel = None
+                flight.persisted_state_time = None
+
+            flight.persisted_health_fraction = min(
+                state.health_fraction for state in states
+            )
+            flight.persisted_ammo_remaining = sum(
+                state.ammo_remaining for state in states
+            )
 
     def commit_air_losses(self, debriefing: Debriefing) -> None:
         for loss in debriefing.air_losses.losses:
