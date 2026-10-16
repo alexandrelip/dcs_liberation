@@ -275,6 +275,16 @@ class Settings:
             "at this interval while strategic fast-forward is running."
         ),
     )
+    continuous_ground_combat: bool = boolean_option(
+        "Continuous ground combat",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        HQ_AUTOMATION_SECTION,
+        default=True,
+        detail=(
+            "In turnless mode, resolve deterministic front-line attrition and "
+            "movement every 30 campaign minutes using force value and combat stance."
+        ),
+    )
     automate_runway_repair: bool = boolean_option(
         "Automate runway repairs",
         CAMPAIGN_MANAGEMENT_PAGE,

@@ -55,6 +55,7 @@ class MissionSimulation:
                 self.time,
                 events,
                 allow_ato_replan=not force_continue,
+                allow_abstract_combat=not force_continue,
             )
         if (
             self.game.settings.fast_forward_stop_condition

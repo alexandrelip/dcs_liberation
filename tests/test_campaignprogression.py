@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta
 from typing import cast
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, call, patch
 
 import pytest
 
@@ -45,6 +45,7 @@ def test_progression_does_not_emit_partial_campaign_period() -> None:
     )
     assert result.count(CampaignEventKind.REPLENISHMENT) == 0
     assert result.count(CampaignEventKind.WEATHER) == 0
+    assert result.count(CampaignEventKind.GROUND_COMBAT) > 0
     assert result.count(CampaignEventKind.FRONT_LINE) == 0
 
 
@@ -137,6 +138,7 @@ def test_progression_migrates_15_0_2_logistics_interval() -> None:
             "event_queue": old_queue,
             "ato_replan_interval": ATO_INTERVAL,
             "_legacy_ato_replan_elapsed": timedelta(),
+            "event_schema_version": 1,
         }
     )
 
@@ -149,6 +151,25 @@ def test_progression_migrates_15_0_2_logistics_interval() -> None:
     assert next_logistics.due_at == START + TRANSFER_POLL_INTERVAL
     assert next_replenishment is not None
     assert next_replenishment.due_at == START + CAMPAIGN_PERIOD
+
+
+def test_progression_adds_ground_combat_to_15_0_2_queue() -> None:
+    old_queue = CampaignEventQueue()
+    progression: CampaignProgression = object.__new__(CampaignProgression)
+    progression.__setstate__(
+        {
+            "last_update": START,
+            "event_queue": old_queue,
+            "ato_replan_interval": ATO_INTERVAL,
+            "_legacy_ato_replan_elapsed": timedelta(),
+            "event_schema_version": 2,
+        }
+    )
+
+    next_combat = progression.event_queue.next_for(CampaignEventKind.GROUND_COMBAT)
+
+    assert next_combat is not None
+    assert next_combat.due_at == START + timedelta(minutes=30)
 
 
 def simulation_game(*, turnless: bool) -> tuple[Game, Mock]:
@@ -189,6 +210,7 @@ def test_mission_simulation_advances_campaign_time_only_in_turnless_mode(
             START + timedelta(seconds=1),
             events,
             allow_ato_replan=allow_ato_replan,
+            allow_abstract_combat=allow_ato_replan,
         )
 
 
@@ -200,6 +222,7 @@ def event_game(
         spec=Settings,
         turnless_mode=True,
         continuous_ato_replan_interval=ATO_INTERVAL,
+        continuous_ground_combat=True,
     )
     game.campaign_progression = Mock(spec=CampaignProgression)
     game.campaign_progression.advance_to.return_value = CampaignProgressionResult(
@@ -222,6 +245,7 @@ def test_campaign_time_replans_ato_only_when_allowed(
         START,
         events,
         allow_ato_replan=allow_ato_replan,
+        allow_abstract_combat=allow_ato_replan,
     )
 
     progression.advance_to.assert_called_once_with(START, ATO_INTERVAL)
@@ -252,12 +276,43 @@ def test_campaign_time_dispatches_income_and_weather() -> None:
             weather_time,
             Mock(spec=GameUpdateEvents),
             allow_ato_replan=True,
+            allow_abstract_combat=True,
         )
 
     blue.accrue_income.assert_called_once_with()
     red.accrue_income.assert_called_once_with()
     generate_conditions_at.assert_called_once_with(weather_time)
     assert game.conditions is expected_conditions
+
+
+@pytest.mark.parametrize("allow_abstract_combat", [False, True])
+def test_campaign_time_avoids_double_counting_dcs_ground_combat(
+    allow_abstract_combat: bool,
+) -> None:
+    front_line = Mock()
+    game, _, _, _ = event_game(event(CampaignEventKind.GROUND_COMBAT))
+    conflicts = cast(Mock, game.theater.conflicts)
+    conflicts.return_value = [front_line]
+    game.continuous_ground_war = Mock()
+    events = Mock(spec=GameUpdateEvents)
+
+    game.advance_campaign_time(
+        START,
+        events,
+        allow_ato_replan=False,
+        allow_abstract_combat=allow_abstract_combat,
+    )
+
+    if allow_abstract_combat:
+        game.continuous_ground_war.resolve.assert_called_once_with(front_line)
+        front_line.update_position.assert_called_once_with()
+        events.update_front_line.assert_called_once_with(front_line)
+        assert events.update_control_point.call_args_list == [
+            call(front_line.blue_cp),
+            call(front_line.red_cp),
+        ]
+    else:
+        game.continuous_ground_war.resolve.assert_not_called()
 
 
 def test_continuous_transfers_preserve_dependency_order() -> None:

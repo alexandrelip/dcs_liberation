@@ -1,3 +1,25 @@
+# 15.1.0
+
+Saves from 15.0.3 are compatible with 15.1.0.
+
+## Features/Improvements
+
+* **[Campaign]** Added deterministic continuous front-line combat every 30 campaign minutes in turn-less mode.
+* **[Campaign]** Ground-force attrition now accounts for force value, offensive and defensive posture, exposure, and persistent fractional loss credit.
+* **[Campaign]** Aggressive, breakthrough, elimination, defensive, ambush, and retreat stances now influence continuous FLOT movement.
+* **[Campaign]** Added a campaign setting to enable or disable continuous ground combat. It is enabled by default for turn-less campaigns.
+* **[UI]** Continuous ground combat streams updated front-line and control-point state to the campaign map.
+
+## Fixes
+
+* **[Campaign]** Abstract ground combat is suppressed while replaying time already simulated by DCS, preventing debriefing losses from being counted twice.
+* **[Campaign]** Attrition credit survives save/load so low-intensity combat cannot avoid losses through rounding.
+* **[Campaign]** Existing 15.0.3 event queues are migrated to schedule continuous ground combat.
+
+## Known limitations
+
+* Continuous combat moves the FLOT and applies losses, but base capture still requires a DCS mission result or the existing capture tools.
+
 # 15.0.3
 
 Saves from 15.0.2 are compatible with 15.0.3.

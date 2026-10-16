@@ -12,7 +12,8 @@ from .campaignevents import (
 
 CAMPAIGN_PERIOD = timedelta(hours=6)
 TRANSFER_POLL_INTERVAL = timedelta(minutes=5)
-EVENT_SCHEMA_VERSION = 2
+GROUND_COMBAT_INTERVAL = timedelta(minutes=30)
+EVENT_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True)
@@ -61,17 +62,24 @@ class CampaignProgression:
             )
         elif state.get("event_schema_version", 1) < EVENT_SCHEMA_VERSION:
             queue = state["event_queue"]
-            queue.remove_kind(CampaignEventKind.LOGISTICS)
-            queue.remove_kind(CampaignEventKind.REPLENISHMENT)
+            if state.get("event_schema_version", 1) < 2:
+                queue.remove_kind(CampaignEventKind.LOGISTICS)
+                queue.remove_kind(CampaignEventKind.REPLENISHMENT)
+                queue.schedule(
+                    CampaignEventKind.LOGISTICS,
+                    last_update + TRANSFER_POLL_INTERVAL,
+                    interval=TRANSFER_POLL_INTERVAL,
+                )
+                queue.schedule(
+                    CampaignEventKind.REPLENISHMENT,
+                    last_update + CAMPAIGN_PERIOD,
+                    interval=CAMPAIGN_PERIOD,
+                )
+            queue.remove_kind(CampaignEventKind.GROUND_COMBAT)
             queue.schedule(
-                CampaignEventKind.LOGISTICS,
-                last_update + TRANSFER_POLL_INTERVAL,
-                interval=TRANSFER_POLL_INTERVAL,
-            )
-            queue.schedule(
-                CampaignEventKind.REPLENISHMENT,
-                last_update + CAMPAIGN_PERIOD,
-                interval=CAMPAIGN_PERIOD,
+                CampaignEventKind.GROUND_COMBAT,
+                last_update + GROUND_COMBAT_INTERVAL,
+                interval=GROUND_COMBAT_INTERVAL,
             )
         state.setdefault("ato_replan_interval", None)
         state.setdefault("_legacy_ato_replan_elapsed", timedelta())
@@ -112,6 +120,11 @@ class CampaignProgression:
             CampaignEventKind.WEATHER,
             time + CAMPAIGN_PERIOD,
             interval=CAMPAIGN_PERIOD,
+        )
+        queue.schedule(
+            CampaignEventKind.GROUND_COMBAT,
+            time + GROUND_COMBAT_INTERVAL,
+            interval=GROUND_COMBAT_INTERVAL,
         )
         queue.schedule(
             CampaignEventKind.FRONT_LINE,

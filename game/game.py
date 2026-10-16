@@ -25,6 +25,7 @@ from .campaignloader import CampaignAirWingConfig
 from .campaignprogression import CampaignProgression, CampaignProgressionResult
 from .coalition import Coalition
 from .db.gamedb import GameDb
+from .ground_forces.continuouscombat import ContinuousGroundWar
 from .infos.information import Information
 from .lasercodes.lasercoderegistry import LaserCodeRegistry
 from .persistence import SaveManager
@@ -116,6 +117,7 @@ class Game:
         self.current_group_id = 0
         self.name_generator = naming.namegen
         self.laser_code_registry = LaserCodeRegistry()
+        self.continuous_ground_war = ContinuousGroundWar()
 
         self.db = GameDb()
 
@@ -239,6 +241,7 @@ class Game:
         events: GameUpdateEvents,
         *,
         allow_ato_replan: bool,
+        allow_abstract_combat: bool,
     ) -> CampaignProgressionResult:
         progression = self.campaign_progression.advance_to(
             time,
@@ -255,8 +258,15 @@ class Game:
                     coalition.accrue_income()
             elif event.kind is CampaignEventKind.WEATHER:
                 self.conditions = self.generate_conditions_at(event.due_at)
+            elif (
+                event.kind is CampaignEventKind.GROUND_COMBAT
+                and self.settings.continuous_ground_combat
+                and allow_abstract_combat
+            ):
+                self._process_continuous_ground_combat(events)
             elif event.kind is CampaignEventKind.FRONT_LINE:
-                self._process_periodic_front_lines(events)
+                if not self.settings.continuous_ground_combat:
+                    self._process_periodic_front_lines(events)
             elif event.kind is CampaignEventKind.ATO_REPLAN:
                 replan_requested = True
 
@@ -286,6 +296,14 @@ class Game:
                 events.update_front_line(front_line)
             control_point.base.affect_strength(+PLAYER_BASE_STRENGTH_RECOVERY)
 
+    def _process_continuous_ground_combat(self, events: GameUpdateEvents) -> None:
+        for front_line in list(self.theater.conflicts()):
+            self.continuous_ground_war.resolve(front_line)
+            front_line.update_position()
+            events.update_front_line(front_line)
+            events.update_control_point(front_line.blue_cp)
+            events.update_control_point(front_line.red_cp)
+
     def on_load(self, game_still_initializing: bool = False) -> None:
         from .sim import GameUpdateEvents
 
@@ -295,6 +313,8 @@ class Game:
             self.campaign_progression = CampaignProgression.starting_at(
                 self.simulation_time
             )
+        if not hasattr(self, "continuous_ground_war"):
+            self.continuous_ground_war = ContinuousGroundWar()
         # Hack: Replace the global name generator state with the state from the save
         # game.
         #

@@ -15,6 +15,7 @@ def test_events_are_ordered_by_time_priority_and_sequence() -> None:
     queue.schedule(CampaignEventKind.LOGISTICS, START)
     queue.schedule(CampaignEventKind.REPLENISHMENT, START)
     queue.schedule(CampaignEventKind.INCOME, START)
+    queue.schedule(CampaignEventKind.GROUND_COMBAT, START)
     queue.schedule(CampaignEventKind.FRONT_LINE, START)
 
     due = queue.pop_due(START)
@@ -24,6 +25,7 @@ def test_events_are_ordered_by_time_priority_and_sequence() -> None:
         CampaignEventKind.REPLENISHMENT,
         CampaignEventKind.INCOME,
         CampaignEventKind.WEATHER,
+        CampaignEventKind.GROUND_COMBAT,
         CampaignEventKind.FRONT_LINE,
         CampaignEventKind.ATO_REPLAN,
     ]

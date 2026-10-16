@@ -114,6 +114,7 @@ The time-based systems are:
 - transfer progress, deliveries, and pilot replenishment every six hours;
 - route-length-based convoy and cargo-ship ETAs checked every five minutes;
 - airlift delivery when the transport flight completes its planned route;
+- deterministic stance- and force-based ground attrition every 30 minutes;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
@@ -122,6 +123,11 @@ Legacy turn-based campaigns retain end-of-turn income and immediate aircraft
 availability. Replaying elapsed time from a completed DCS mission consumes ATO
 replanning intervals, but planning runs once after the replay rather than
 creating missions retroactively.
+
+Continuous ground combat updates losses and FLOT position but deliberately does
+not capture control points yet. Capture requires additional handling for
+retreating units, aircraft, ground-object ownership, IADS, and mission
+invalidation.
 
 ### Front-line progress rework
 

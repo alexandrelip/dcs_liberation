@@ -12,6 +12,7 @@ class CampaignEventKind(Enum):
     REPLENISHMENT = "replenishment"
     INCOME = "income"
     WEATHER = "weather"
+    GROUND_COMBAT = "ground-combat"
     FRONT_LINE = "front-line"
     ATO_REPLAN = "ato-replan"
 
@@ -21,6 +22,7 @@ class CampaignEventPriority(IntEnum):
     REPLENISHMENT = 15
     INCOME = 20
     WEATHER = 30
+    GROUND_COMBAT = 35
     FRONT_LINE = 40
     ATO_REPLAN = 100
 
@@ -30,6 +32,7 @@ EVENT_PRIORITIES = {
     CampaignEventKind.REPLENISHMENT: CampaignEventPriority.REPLENISHMENT,
     CampaignEventKind.INCOME: CampaignEventPriority.INCOME,
     CampaignEventKind.WEATHER: CampaignEventPriority.WEATHER,
+    CampaignEventKind.GROUND_COMBAT: CampaignEventPriority.GROUND_COMBAT,
     CampaignEventKind.FRONT_LINE: CampaignEventPriority.FRONT_LINE,
     CampaignEventKind.ATO_REPLAN: CampaignEventPriority.ATO_REPLAN,
 }
