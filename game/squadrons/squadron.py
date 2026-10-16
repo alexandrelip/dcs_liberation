@@ -5,7 +5,7 @@ import random
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Optional, Sequence, TYPE_CHECKING
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 from uuid import uuid4, UUID
 
 from faker import Faker
@@ -63,6 +63,9 @@ class Squadron:
     owned_aircraft: int = field(init=False, hash=False, compare=False, default=0)
     untasked_aircraft: int = field(init=False, hash=False, compare=False, default=0)
     pending_deliveries: int = field(init=False, hash=False, compare=False, default=0)
+    aircraft_in_turnaround: list[datetime] = field(
+        default_factory=list, init=False, hash=False, compare=False
+    )
 
     def __str__(self) -> str:
         if self.nickname is None:
@@ -76,6 +79,10 @@ class Squadron:
         if not isinstance(other, Squadron):
             return False
         return self.id == other.id
+
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        state.setdefault("aircraft_in_turnaround", [])
+        self.__dict__.update(state)
 
     @property
     def player(self) -> bool:
@@ -180,6 +187,7 @@ class Squadron:
 
     def return_all_pilots_and_aircraft(self) -> None:
         self.available_pilots = list(self.active_pilots)
+        self.aircraft_in_turnaround.clear()
         self.untasked_aircraft = self.owned_aircraft
 
     @staticmethod
@@ -296,6 +304,34 @@ class Squadron:
                 f"{self.untasked_aircraft}."
             )
         self.untasked_aircraft -= count
+
+    def return_aircraft(self, count: int, available_at: datetime | None = None) -> None:
+        if count < 0:
+            raise ValueError("Returned aircraft count cannot be negative")
+        unavailable = (
+            self.owned_aircraft
+            - self.untasked_aircraft
+            - len(self.aircraft_in_turnaround)
+        )
+        if count > unavailable:
+            raise ValueError(
+                f"Cannot return {count} aircraft to {self.name}. Only "
+                f"{unavailable} are currently assigned."
+            )
+        if available_at is None:
+            self.claim_inventory(-count)
+        else:
+            self.aircraft_in_turnaround.extend([available_at] * count)
+
+    def release_ready_aircraft(self, time: datetime) -> int:
+        ready = [t for t in self.aircraft_in_turnaround if t <= time]
+        if not ready:
+            return 0
+        self.aircraft_in_turnaround = [
+            t for t in self.aircraft_in_turnaround if t > time
+        ]
+        self.claim_inventory(-len(ready))
+        return len(ready)
 
     def can_fulfill_flight(self, count: int) -> bool:
         return self.can_provide_pilots(count) and self.untasked_aircraft >= count

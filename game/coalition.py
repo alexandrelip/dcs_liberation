@@ -145,14 +145,22 @@ class Coalition:
     def set_bullseye(self, bullseye: Bullseye) -> None:
         self.bullseye = bullseye
 
-    def end_turn(self) -> None:
+    def accrue_income(self, periods: int = 1) -> float:
+        if periods < 0:
+            raise ValueError("Income periods cannot be negative")
+        income = Income(self.game, self.player).total * periods
+        self.budget += income
+        return income
+
+    def end_turn(self, *, include_income: bool = True) -> None:
         """Processes coalition-specific turn finalization.
 
         For more information on turn finalization in general, see the documentation for
         `Game.finish_turn`.
         """
         self.air_wing.end_turn()
-        self.budget += Income(self.game, self.player).total
+        if include_income:
+            self.accrue_income()
 
         # Need to recompute before transfers and deliveries to account for captures.
         # This happens in in initialize_turn as well, because cheating doesn't advance a

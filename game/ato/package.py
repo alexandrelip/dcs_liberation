@@ -133,7 +133,9 @@ class Package:
         self.flights.append(flight)
         self._db.add(flight.id, flight)
 
-    def remove_flight(self, flight: Flight) -> None:
+    def remove_flight(
+        self, flight: Flight, aircraft_available_at: datetime | None = None
+    ) -> None:
         """Removes a flight from the package."""
         # Check if flight.callsign is None to handle case where callsign was not generated.
         # This can happen when a module does not support the standard  callsigns e.g. Kiowa.
@@ -143,7 +145,7 @@ class Package:
             )
         self.flights.remove(flight)
         self._db.remove(flight.id)
-        flight.return_pilots_and_aircraft()
+        flight.return_pilots_and_aircraft(aircraft_available_at)
         if flight.cargo is not None:
             flight.cargo.transport = None
         if not self.flights:

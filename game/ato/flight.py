@@ -180,9 +180,11 @@ class Flight(SidcDescribable):
 
         self._flight_plan_builder = FlightPlanBuilderTypes.for_flight(self)(self)
 
-    def return_pilots_and_aircraft(self) -> None:
+    def return_pilots_and_aircraft(
+        self, aircraft_available_at: datetime | None = None
+    ) -> None:
         self.roster.clear()
-        self.squadron.claim_inventory(-self.count)
+        self.squadron.return_aircraft(self.count, aircraft_available_at)
 
     def max_takeoff_fuel(self) -> Optional[float]:
         # Special case so Su 33 and C101 can take off

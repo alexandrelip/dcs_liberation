@@ -1,6 +1,10 @@
 # -*- mode: python -*-
 
+from PyInstaller.utils.hooks import collect_data_files
+
+
 block_cipher = None
+pyproj_data = collect_data_files("pyproj")
 
 
 analysis = Analysis(
@@ -12,7 +16,7 @@ analysis = Analysis(
         ('resources/caucasus.p', 'dcs/terrain/'),
         ('resources/nevada.p', 'dcs/terrain/'),
         ('client/build', 'client/build'),
-    ],
+    ] + pyproj_data,
     hookspath=[],
     runtime_hooks=[],
     excludes=[],

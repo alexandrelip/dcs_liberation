@@ -104,6 +104,20 @@ that may take more than a single release. It is not focused on providing the
 best gameplay experience ASAP, but on being able to approach this gradually
 rather than freezing all other development or branching and a painful merge.
 
+### Phase-one implementation status
+
+Turnless mode now advances a persistent campaign progression clock while
+strategic simulation time moves. The first time-based systems are:
+
+- coalition income paid for each completed six-hour campaign period;
+- configurable periodic ATO replanning during live strategic fast-forward; and
+- configurable aircraft turnaround after completed flights.
+
+Legacy turn-based campaigns retain end-of-turn income and immediate aircraft
+availability. Replaying elapsed time from a completed DCS mission consumes ATO
+replanning intervals, but planning runs once after the replay rather than
+creating missions retroactively.
+
 ### Front-line progress rework
 
 Add auto-resolve for the front line, adjust progress estimates based on stances

@@ -35,6 +35,9 @@ class AircraftSimulation:
         combat_resolution_method: CombatResolutionMethod,
         force_continue: bool,
     ) -> None:
+        for coalition in self.game.coalitions:
+            coalition.air_wing.release_ready_aircraft(time)
+
         if (
             not self._auto_resolve_combat(combat_resolution_method, force_continue)
             and self.combats
@@ -75,9 +78,19 @@ class AircraftSimulation:
 
         # Find completed flights, removing them from the ATO and returning aircraft
         # and pilots back to the squadron.
-        for flight in self.iter_flights():
+        for flight in list(self.iter_flights()):
             if type(flight.state) == Completed:
-                flight.package.remove_flight(flight)
+                aircraft_available_at = None
+                if (
+                    self.game.settings.turnless_mode
+                    and self.game.settings.aircraft_turnaround_time > timedelta()
+                ):
+                    aircraft_available_at = (
+                        time + self.game.settings.aircraft_turnaround_time
+                    )
+                flight.package.remove_flight(
+                    flight, aircraft_available_at=aircraft_available_at
+                )
                 if len(flight.package.flights) == 0:
                     flight.squadron.coalition.ato.remove_package(flight.package)
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import itertools
 from collections import defaultdict
+from datetime import datetime
 from typing import Iterator, Optional, Sequence, TYPE_CHECKING
 
 from game.ato.closestairfields import ObjectiveDistanceCache
@@ -138,6 +139,11 @@ class AirWing:
     def reset(self) -> None:
         for squadron in self.iter_squadrons():
             squadron.return_all_pilots_and_aircraft()
+
+    def release_ready_aircraft(self, time: datetime) -> int:
+        return sum(
+            squadron.release_ready_aircraft(time) for squadron in self.iter_squadrons()
+        )
 
     @property
     def size(self) -> int:

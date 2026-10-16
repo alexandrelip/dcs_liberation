@@ -1,3 +1,19 @@
+# 15.0.1
+
+Saves from 15.0.0 are compatible with 15.0.1.
+
+## Features/Improvements
+
+* **[Campaign]** Turn-less campaigns now accrue coalition income for each completed six-hour campaign period instead of requiring a turn transition.
+* **[Campaign]** Added configurable periodic ATO replanning while strategic fast-forward is running in turn-less mode.
+* **[Campaign]** Added configurable aircraft turnaround time. Aircraft that complete a mission remain unavailable until servicing is complete.
+* **[Campaign]** Added save compatibility for the new continuous-campaign timing and aircraft-turnaround state.
+
+## Fixes
+
+* **[Campaign]** End Turn no longer grants duplicate income in turn-less mode.
+* **[Mission Generation]** Packaged releases now include the `pyproj` coordinate database required for geographic conversions.
+
 # 15.0.0
 
 Saves from 14.x are not compatible with 15.0.0.

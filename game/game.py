@@ -21,6 +21,7 @@ from game.utils import Distance
 from . import naming
 from .ato.flighttype import FlightType
 from .campaignloader import CampaignAirWingConfig
+from .campaignprogression import CampaignProgression
 from .coalition import Coalition
 from .db.gamedb import GameDb
 from .infos.information import Information
@@ -131,6 +132,9 @@ class Game:
         # MissionSimulation object.
         self.conditions = self.generate_conditions(forced_time=start_time)
         self.simulation_time = self.conditions.start_time
+        self.campaign_progression = CampaignProgression.starting_at(
+            self.simulation_time
+        )
 
         self.sanitize_sides(player_faction, enemy_faction)
         self.blue = Coalition(self, player_faction, player_budget, player=True)
@@ -224,6 +228,10 @@ class Game:
 
         if not hasattr(self, "name_generator"):
             self.name_generator = naming.namegen
+        if not hasattr(self, "campaign_progression"):
+            self.campaign_progression = CampaignProgression.starting_at(
+                self.simulation_time
+            )
         # Hack: Replace the global name generator state with the state from the save
         # game.
         #
@@ -279,8 +287,9 @@ class Game:
         # since the coalition-specific finalization handles transit network updates and
         # transfer processing. If in the other order, units may be delivered to captured
         # bases, and freshly delivered units will spawn one leg through their journey.
-        self.blue.end_turn()
-        self.red.end_turn()
+        include_income = not self.settings.turnless_mode
+        self.blue.end_turn(include_income=include_income)
+        self.red.end_turn(include_income=include_income)
 
         for control_point in self.theater.controlpoints:
             control_point.process_turn(self)
@@ -296,7 +305,21 @@ class Game:
         # turn 1.
         if self.turn > 1:
             self.conditions = self.generate_conditions()
-            self.simulation_time = self.conditions.start_time
+            if self.settings.turnless_mode:
+                self.simulation_time = max(
+                    self.simulation_time, self.conditions.start_time
+                )
+            else:
+                self.simulation_time = self.conditions.start_time
+
+        if self.settings.turnless_mode:
+            self.campaign_progression.advance_to(
+                self.coalitions,
+                self.simulation_time,
+                self.settings.continuous_ato_replan_interval,
+            )
+        else:
+            self.campaign_progression.synchronize(self.simulation_time)
 
     def begin_turn_0(self) -> None:
         """Initialization for the first turn of the game."""

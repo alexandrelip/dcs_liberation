@@ -248,8 +248,33 @@ class Settings:
             "this many pilots each turn up to the limit."
         ),
     )
+    aircraft_turnaround_time: timedelta = minutes_option(
+        "Aircraft turnaround time",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        PILOTS_AND_SQUADRONS_SECTION,
+        default=timedelta(minutes=60),
+        min=0,
+        max=360,
+        detail=(
+            "In turnless mode, aircraft that complete a mission remain unavailable "
+            "for this long before they can be assigned again. Set to zero to return "
+            "aircraft immediately."
+        ),
+    )
 
     # HQ Automation
+    continuous_ato_replan_interval: timedelta = minutes_option(
+        "Continuous ATO replanning interval",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        HQ_AUTOMATION_SECTION,
+        default=timedelta(minutes=15),
+        min=1,
+        max=120,
+        detail=(
+            "In turnless mode, the theater commanders reconsider available missions "
+            "at this interval while strategic fast-forward is running."
+        ),
+    )
     automate_runway_repair: bool = boolean_option(
         "Automate runway repairs",
         CAMPAIGN_MANAGEMENT_PAGE,
