@@ -10,6 +10,7 @@ from dcs.unit import Skill
 from dcs.unitgroup import FlyingGroup
 
 from game.ato import Flight, FlightType
+from game.ato.loadouts import Loadout
 from game.callsigns.callsign import callsign_for_support_unit
 from game.callsigns.callsigngenerator import Callsign, FlightCallsignGenerator
 from game.data.weapons import Pylon
@@ -237,14 +238,23 @@ class FlightGroupConfigurator:
                 unit.set_property(prop_id, value)
 
     def setup_payloads(self) -> None:
-        for unit, member in zip(self.group.units, self.flight.iter_members()):
-            self.setup_payload(unit, member)
+        for index, (unit, member) in enumerate(
+            zip(self.group.units, self.flight.iter_members())
+        ):
+            reserved = self.flight.reserved_loadouts
+            loadout = reserved[index] if reserved is not None else None
+            self.setup_payload(unit, member, loadout)
 
-    def setup_payload(self, unit: FlyingUnit, member: FlightMember) -> None:
+    def setup_payload(
+        self,
+        unit: FlyingUnit,
+        member: FlightMember,
+        reserved_loadout: Loadout | None = None,
+    ) -> None:
         unit.pylons.clear()
 
-        loadout = member.loadout
-        if self.game.settings.restrict_weapons_by_date:
+        loadout = reserved_loadout or member.loadout
+        if reserved_loadout is None and self.game.settings.restrict_weapons_by_date:
             loadout = loadout.degrade_for_date(
                 self.flight.unit_type,
                 self.game.date,

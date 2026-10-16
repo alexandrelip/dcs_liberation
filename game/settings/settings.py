@@ -57,6 +57,7 @@ CAMPAIGN_MANAGEMENT_PAGE = "Campaign Management"
 GENERAL_SECTION = "General"
 PILOTS_AND_SQUADRONS_SECTION = "Pilots and Squadrons"
 HQ_AUTOMATION_SECTION = "HQ Automation"
+STRATEGIC_PRIORITIES_SECTION = "Strategic Priorities"
 
 MISSION_GENERATOR_PAGE = "Mission Generator"
 
@@ -248,6 +249,32 @@ class Settings:
             "this many pilots each turn up to the limit."
         ),
     )
+    enable_squadron_weapon_limits: bool = boolean_option(
+        "Enable squadron weapon stores",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        PILOTS_AND_SQUADRONS_SECTION,
+        default=True,
+        detail=(
+            "In turnless mode, generated sorties reserve weapons from persistent "
+            "squadron stores. Compatible fallback weapons are selected when needed."
+        ),
+    )
+    squadron_weapon_stock_multiplier: int = bounded_int_option(
+        "Initial weapon stores per squadron aircraft",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        PILOTS_AND_SQUADRONS_SECTION,
+        default=8,
+        min=1,
+        max=30,
+    )
+    squadron_weapon_resupply_rate: int = bounded_int_option(
+        "Weapon stores resupply per strategic period",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        PILOTS_AND_SQUADRONS_SECTION,
+        default=4,
+        min=0,
+        max=50,
+    )
     aircraft_turnaround_time: timedelta = minutes_option(
         "Aircraft turnaround time",
         CAMPAIGN_MANAGEMENT_PAGE,
@@ -328,6 +355,78 @@ class Settings:
         CAMPAIGN_MANAGEMENT_PAGE,
         HQ_AUTOMATION_SECTION,
         default=True,
+    )
+    priority_theater_support: int = bounded_int_option(
+        "Theater support priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=100,
+        min=0,
+        max=100,
+    )
+    priority_air_defense: int = bounded_int_option(
+        "Air defense priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=90,
+        min=0,
+        max=100,
+    )
+    priority_capture: int = bounded_int_option(
+        "Base capture priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=80,
+        min=0,
+        max=100,
+    )
+    priority_defense: int = bounded_int_option(
+        "Base defense priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=70,
+        min=0,
+        max=100,
+    )
+    priority_interdiction: int = bounded_int_option(
+        "Logistics interdiction priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=60,
+        min=0,
+        max=100,
+    )
+    priority_battlefield: int = bounded_int_option(
+        "Battlefield attack priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=50,
+        min=0,
+        max=100,
+    )
+    priority_air_infrastructure: int = bounded_int_option(
+        "Enemy air infrastructure priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=40,
+        min=0,
+        max=100,
+    )
+    priority_strike: int = bounded_int_option(
+        "Strategic strike priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=30,
+        min=0,
+        max=100,
+    )
+    priority_iads: int = bounded_int_option(
+        "IADS degradation priority",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        STRATEGIC_PRIORITIES_SECTION,
+        default=20,
+        min=0,
+        max=100,
     )
     reserves_procurement_target: int = 10
 

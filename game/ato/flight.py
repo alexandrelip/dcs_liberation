@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import uuid
+from collections import Counter
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from typing import Any, List, Optional, TYPE_CHECKING
@@ -24,6 +25,7 @@ from ..sidc import (
 if TYPE_CHECKING:
     from game.callsigns.callsigngenerator import Callsign
     from game.dcs.aircrafttype import AircraftType
+    from game.game import Game
     from game.sim.gameupdateevents import GameUpdateEvents
     from game.sim.simulationresults import SimulationResults
     from game.squadrons import Squadron, Pilot
@@ -31,6 +33,7 @@ if TYPE_CHECKING:
     from game.transfers import TransferOrder
     from game.data.weapons import WeaponType
     from .flightmember import FlightMember
+    from .loadouts import Loadout
     from .flightplans.flightplan import FlightPlan
     from .flightwaypoint import FlightWaypoint
     from .package import Package
@@ -91,6 +94,8 @@ class Flight(SidcDescribable):
         self.persisted_health_fraction = 1.0
         self.persisted_ammo_remaining: int | None = None
         self.persisted_state_time: datetime | None = None
+        self.reserved_loadouts: list[Loadout] | None = None
+        self.weapon_reservations: dict[str, int] = {}
 
         # Will be replaced with a more appropriate FlightPlan later, but start with a
         # cheaply constructed one since adding more flights to the package may affect
@@ -106,6 +111,8 @@ class Flight(SidcDescribable):
         state.setdefault("persisted_health_fraction", 1.0)
         state.setdefault("persisted_ammo_remaining", None)
         state.setdefault("persisted_state_time", None)
+        state.setdefault("reserved_loadouts", None)
+        state.setdefault("weapon_reservations", {})
         self.__dict__.update(state)
 
     @property
@@ -198,8 +205,44 @@ class Flight(SidcDescribable):
     def return_pilots_and_aircraft(
         self, aircraft_available_at: datetime | None = None
     ) -> None:
+        if self.state.cancelable:
+            self.refund_weapon_reservations()
         self.roster.clear()
         self.squadron.return_aircraft(self.count, aircraft_available_at)
+
+    def reserve_weapon_loadouts(self, game: Game) -> bool:
+        if self.reserved_loadouts is not None:
+            return False
+        reservations: Counter[str] = Counter()
+        loadouts = []
+        for member in self.iter_members():
+            loadout = member.loadout
+            if game.settings.restrict_weapons_by_date:
+                loadout = loadout.degrade_for_date(
+                    self.unit_type,
+                    game.date,
+                    self.squadron.coalition.faction,
+                )
+            selected, claimed = self.squadron.weapon_stores.claim_loadout(
+                loadout,
+                self.unit_type,
+                game.date,
+                self.squadron.coalition.faction,
+                self.squadron.initial_weapon_stock,
+            )
+            loadouts.append(selected)
+            reservations.update(claimed)
+        self.reserved_loadouts = loadouts
+        self.weapon_reservations = dict(reservations)
+        return True
+
+    def refund_weapon_reservations(self) -> None:
+        if not self.weapon_reservations:
+            self.reserved_loadouts = None
+            return
+        self.squadron.weapon_stores.refund(self.weapon_reservations)
+        self.weapon_reservations = {}
+        self.reserved_loadouts = None
 
     def max_takeoff_fuel(self) -> Optional[float]:
         # Special case so Su 33 and C101 can take off

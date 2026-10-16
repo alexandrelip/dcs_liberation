@@ -41,6 +41,7 @@ from .visualsgenerator import VisualsGenerator
 
 if TYPE_CHECKING:
     from game import Game
+    from game.ato import Flight
     from game.theater import ControlPoint
     from game.ground_forces.ai_ground_planner import CombatGroup
 
@@ -103,23 +104,48 @@ class MissionGenerator:
         # Generate ground conflicts first so the JTACs get the first laser code (1688)
         # rather than the first player flight with a TGP.
         self.generate_ground_conflicts()
-        self.generate_air_units(tgo_generator)
+        newly_reserved = self.reserve_weapon_loadouts()
+        try:
+            self.generate_air_units(tgo_generator)
 
-        TriggerGenerator(self.mission, self.game).generate()
-        ForcedOptionsGenerator(self.mission, self.game).generate()
-        VisualsGenerator(self.mission, self.game).generate()
-        LuaGenerator(self.game, self.mission, self.mission_data).generate()
-        DrawingsGenerator(self.mission, self.game).generate()
+            TriggerGenerator(self.mission, self.game).generate()
+            ForcedOptionsGenerator(self.mission, self.game).generate()
+            VisualsGenerator(self.mission, self.game).generate()
+            LuaGenerator(self.game, self.mission, self.mission_data).generate()
+            DrawingsGenerator(self.mission, self.game).generate()
 
-        self.setup_combined_arms()
+            self.setup_combined_arms()
 
-        self.notify_info_generators()
+            self.notify_info_generators()
 
-        # TODO: Shouldn't this be first?
-        namegen.reset_numbers()
-        self.mission.save(output)
+            # TODO: Shouldn't this be first?
+            namegen.reset_numbers()
+            self.mission.save(output)
+        except Exception:
+            for flight in newly_reserved:
+                flight.refund_weapon_reservations()
+            raise
 
         return self.unit_map
+
+    def reserve_weapon_loadouts(self) -> list[Flight]:
+        if (
+            not self.game.settings.turnless_mode
+            or not self.game.settings.enable_squadron_weapon_limits
+        ):
+            return []
+        reserved = []
+        try:
+            for coalition in self.game.coalitions:
+                for package in coalition.ato.packages:
+                    for flight in package.flights:
+                        if flight.alive and flight.reserve_weapon_loadouts(self.game):
+                            reserved.append(flight)
+        except Exception:
+            for flight in reserved:
+                flight.refund_weapon_reservations()
+            raise
+        return reserved
 
     def setup_mission_coalitions(self) -> None:
         self.mission.coalition["blue"] = Coalition(

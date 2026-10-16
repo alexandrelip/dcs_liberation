@@ -1,3 +1,29 @@
+# 15.5.0
+
+Saves from 15.4.0 are compatible with 15.5.0.
+
+## Features/Improvements
+
+* **[Campaign]** Added nine persistent player-configurable theater priorities for support, air defense, capture, defense, logistics interdiction, battlefield attack, enemy air infrastructure, strategic strike, and IADS degradation.
+* **[Campaign]** Theater commander HTN methods are ordered by player priorities; setting a category to zero disables automatic planning for that category.
+* **[Campaign]** Added persistent per-squadron weapon stores keyed by DCS CLSID for turn-less campaigns.
+* **[Campaign]** Mission generation reserves stores transactionally and rolls the full batch back if generation fails.
+* **[Campaign]** Depleted stores select compatible date-valid fallback weapons before leaving a pylon empty.
+* **[Campaign]** Cancelling an unlaunched flight refunds its reserved stores; launched, completed, or destroyed flights consume them.
+* **[Campaign]** Known squadron stores resupply every six-hour strategic replenishment period up to their configured capacity.
+
+## Fixes
+
+* **[Mission Generation]** Repeated generation of a continuing flight reuses its reservation rather than consuming the same weapons again.
+* **[Mission Generation]** Weapon fallback selection accounts for multiple pylons in the same loadout before committing inventory.
+* **[Campaign]** Old squadron and flight saves initialize empty store state and reservation metadata automatically.
+
+## Known limitations
+
+* A DCS CLSID can represent a rack or launcher containing multiple rounds; the initial model counts one pylon store rather than each contained round.
+* Aggregate ammunition captured from DCS is not yet mapped back to individual pylon CLSIDs after a continuing sortie.
+* Strategic priorities control category ordering globally; geographic PAK-style weights are not yet exposed.
+
 # 15.4.0
 
 Saves from 15.3.0 are compatible with 15.4.0.

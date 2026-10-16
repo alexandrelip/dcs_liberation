@@ -123,6 +123,8 @@ The time-based systems are:
 - deterministic capability-based air and SAM autoresolve;
 - strategic capture of land airfields and FOBs by continuous ground offensives;
 - a bounded campaign history exposed in the map UI and local API;
+- persistent transactional squadron weapon stores with compatible fallbacks;
+- nine player-configurable HTN theater-priority categories;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
@@ -154,8 +156,15 @@ Air and SAM autoresolve now use reproducible capability scoring rather than
 global random coin flips. Ground offensives can capture land airfields and
 FOBs through the same ownership, retreat, redeployment, and IADS paths used by
 DCS debriefing. Strategic events are retained in a bounded history and shown
-in the map UI. Individual missile inventories, sensor geometry, and player
-theater-priority controls are not yet modeled.
+in the map UI. Individual rounds inside multi-weapon racks, sensor geometry,
+and geographic PAK priorities are not yet modeled.
+
+Squadron stores are reserved as a transaction before mission generation and
+refunded if generation fails or an unlaunched flight is cancelled. Continued
+flights reuse their reservation. Store quantities currently count pylon CLSIDs,
+which may represent multi-round racks. Theater priorities reorder or disable
+the commander's global HTN action categories; geographic PAK weighting remains
+future work.
 
 ### Front-line progress rework
 

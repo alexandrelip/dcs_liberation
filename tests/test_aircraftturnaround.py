@@ -103,6 +103,9 @@ def test_flight_delegates_delayed_aircraft_return() -> None:
     flight: Flight = object.__new__(Flight)
     flight.roster = Mock(max_size=2)
     flight.squadron = Mock()
+    flight.state = Mock(cancelable=False)
+    flight.weapon_reservations = {}
+    flight.reserved_loadouts = None
     ready_at = NOW + timedelta(hours=1)
 
     flight.return_pilots_and_aircraft(ready_at)

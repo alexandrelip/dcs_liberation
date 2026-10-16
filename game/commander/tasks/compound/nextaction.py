@@ -23,12 +23,25 @@ class PlanNextAction(CompoundTask[TheaterState]):
     aircraft_cold_start: bool
 
     def each_valid_method(self, state: TheaterState) -> Iterator[Method[TheaterState]]:
-        yield [TheaterSupport()]
-        yield [ProtectAirSpace()]
-        yield [CaptureBases()]
-        yield [DefendBases()]
-        yield [InterdictReinforcements()]
-        yield [AttackBattlePositions()]
-        yield [AttackAirInfrastructure(self.aircraft_cold_start)]
-        yield [AttackBuildings()]
-        yield [DegradeIads()]
+        settings = state.context.settings
+        prioritized = [
+            (settings.priority_theater_support, 0, TheaterSupport()),
+            (settings.priority_air_defense, 1, ProtectAirSpace()),
+            (settings.priority_capture, 2, CaptureBases()),
+            (settings.priority_defense, 3, DefendBases()),
+            (settings.priority_interdiction, 4, InterdictReinforcements()),
+            (settings.priority_battlefield, 5, AttackBattlePositions()),
+            (
+                settings.priority_air_infrastructure,
+                6,
+                AttackAirInfrastructure(self.aircraft_cold_start),
+            ),
+            (settings.priority_strike, 7, AttackBuildings()),
+            (settings.priority_iads, 8, DegradeIads()),
+        ]
+        for priority, _, task in sorted(
+            prioritized,
+            key=lambda item: (-item[0], item[1]),
+        ):
+            if priority > 0:
+                yield [task]

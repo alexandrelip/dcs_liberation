@@ -13,6 +13,7 @@ from faker import Faker
 from game.ato import Flight, FlightType, Package
 from game.settings import AutoAtoBehavior, Settings
 from .pilot import Pilot, PilotStatus
+from .stores import SquadronStores
 from ..db.database import Database
 from ..utils import meters
 
@@ -66,6 +67,12 @@ class Squadron:
     aircraft_in_turnaround: list[datetime] = field(
         default_factory=list, init=False, hash=False, compare=False
     )
+    weapon_stores: SquadronStores = field(
+        default_factory=SquadronStores,
+        init=False,
+        hash=False,
+        compare=False,
+    )
 
     def __str__(self) -> str:
         if self.nickname is None:
@@ -82,6 +89,7 @@ class Squadron:
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         state.setdefault("aircraft_in_turnaround", [])
+        state.setdefault("weapon_stores", SquadronStores())
         self.__dict__.update(state)
 
     @property
@@ -183,6 +191,15 @@ class Squadron:
     def process_periodic_replenishment(self) -> None:
         self.replenish_lost_pilots()
         self.deliver_orders()
+        if self.settings.enable_squadron_weapon_limits:
+            self.weapon_stores.resupply(self.settings.squadron_weapon_resupply_rate)
+
+    @property
+    def initial_weapon_stock(self) -> int:
+        return max(
+            1,
+            self.max_size * self.settings.squadron_weapon_stock_multiplier,
+        )
 
     def replenish_lost_pilots(self) -> None:
         if self.pilot_limits_enabled and self.replenish_count > 0:
