@@ -55,7 +55,7 @@ class ConvoyGenerator:
 
         group.add_waypoint(
             end_point,
-            speed=kph(40).kph,
+            speed=kph(Convoy.SPEED_KPH).kph,
             move_formation=PointAction.OnRoad,
         )
 

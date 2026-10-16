@@ -8,6 +8,7 @@ from datetime import datetime, timedelta
 from typing_extensions import TYPE_CHECKING
 
 from game.ato.flightstate import Uninitialized, Completed, InCombat
+from game.ato.flightplans.airlift import AirliftFlightPlan
 from game.settings.settings import FastForwardStopCondition, CombatResolutionMethod
 from .combat import CombatInitiator, FrozenCombat
 from .gameupdateevents import GameUpdateEvents
@@ -80,6 +81,12 @@ class AircraftSimulation:
         # and pilots back to the squadron.
         for flight in list(self.iter_flights()):
             if type(flight.state) == Completed:
+                if (
+                    flight.cargo is not None
+                    and flight.cargo.transport is not None
+                    and isinstance(flight.flight_plan, AirliftFlightPlan)
+                ):
+                    flight.cargo.proceed()
                 aircraft_available_at = None
                 if (
                     self.game.settings.turnless_mode

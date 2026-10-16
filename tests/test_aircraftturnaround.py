@@ -5,6 +5,7 @@ import pytest
 
 from game import Game
 from game.ato.flight import Flight
+from game.ato.flightplans.airlift import AirliftFlightPlan
 from game.ato.flightstate import Completed
 from game.settings import Settings
 from game.settings.settings import CombatResolutionMethod
@@ -134,6 +135,7 @@ def test_completed_flight_uses_turnaround_only_in_turnless_mode(
         package=package,
         squadron=squadron,
         state=Completed(Mock(), settings),
+        cargo=None,
     )
     flight.should_halt_sim.return_value = False
     package.flights = [flight]
@@ -177,6 +179,7 @@ def test_all_completed_flights_are_removed_from_mutating_package() -> None:
             package=package,
             squadron=squadron,
             state=Completed(Mock(), settings),
+            cargo=None,
         )
         for _ in range(2)
     ]
@@ -210,3 +213,89 @@ def test_all_completed_flights_are_removed_from_mutating_package() -> None:
 
     assert package.remove_flight.call_count == 2
     assert package.flights == []
+
+
+def test_completed_airlift_delivers_surviving_cargo() -> None:
+    settings = Mock(
+        spec=Settings,
+        turnless_mode=True,
+        aircraft_turnaround_time=timedelta(),
+    )
+    cargo = Mock()
+    cargo.transport = Mock()
+    package = Mock()
+    squadron = Mock(player=True)
+    flight = Mock(
+        package=package,
+        squadron=squadron,
+        state=Completed(Mock(), settings),
+        cargo=cargo,
+        flight_plan=Mock(spec=AirliftFlightPlan),
+    )
+    flight.should_halt_sim.return_value = False
+    package.flights = [flight]
+    blue = Mock()
+    blue.ato.packages = [package]
+    red = Mock()
+    red.ato.packages = []
+    game: Game = Mock(
+        spec=Game,
+        settings=settings,
+        blue=blue,
+        red=red,
+        coalitions=[blue, red],
+    )
+
+    with patch("game.sim.aircraftsimulation.CombatInitiator.update_active_combats"):
+        AircraftSimulation(game).on_game_tick(
+            GameUpdateEvents(),
+            NOW,
+            timedelta(seconds=1),
+            CombatResolutionMethod.SKIP,
+            force_continue=False,
+        )
+
+    cargo.proceed.assert_called_once_with()
+
+
+def test_aborted_airlift_does_not_deliver_cargo_on_landing() -> None:
+    settings = Mock(
+        spec=Settings,
+        turnless_mode=True,
+        aircraft_turnaround_time=timedelta(),
+    )
+    cargo = Mock()
+    cargo.transport = Mock()
+    package = Mock()
+    squadron = Mock(player=True)
+    flight = Mock(
+        package=package,
+        squadron=squadron,
+        state=Completed(Mock(), settings),
+        cargo=cargo,
+        flight_plan=Mock(),
+    )
+    flight.should_halt_sim.return_value = False
+    package.flights = [flight]
+    blue = Mock()
+    blue.ato.packages = [package]
+    red = Mock()
+    red.ato.packages = []
+    game: Game = Mock(
+        spec=Game,
+        settings=settings,
+        blue=blue,
+        red=red,
+        coalitions=[blue, red],
+    )
+
+    with patch("game.sim.aircraftsimulation.CombatInitiator.update_active_combats"):
+        AircraftSimulation(game).on_game_tick(
+            GameUpdateEvents(),
+            NOW,
+            timedelta(seconds=1),
+            CombatResolutionMethod.SKIP,
+            force_continue=False,
+        )
+
+    cargo.proceed.assert_not_called()

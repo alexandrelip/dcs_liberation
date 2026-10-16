@@ -41,6 +41,6 @@ class CargoShipGenerator:
         for waypoint in waypoints[1:]:
             # 12 knots is very slow but it's also nearly the max allowed by DCS for this
             # type of ship.
-            group.add_waypoint(waypoint, speed=knots(12).kph)
+            group.add_waypoint(waypoint, speed=knots(CargoShip.SPEED_KNOTS).kph)
         self.unit_map.add_cargo_ship(group, ship)
         return group

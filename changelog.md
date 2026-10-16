@@ -1,3 +1,21 @@
+# 15.0.3
+
+Saves from 15.0.2 are compatible with 15.0.3.
+
+## Features/Improvements
+
+* **[Campaign]** Turn-less ground and sea transfers now persist departure and arrival times instead of advancing one route link every six hours.
+* **[Campaign]** Convoy and cargo-ship travel time is calculated from the campaign route length and the same speeds used in generated DCS missions.
+* **[Campaign]** Continuous transfer arrivals are checked every five campaign minutes, while deliveries and pilot replenishment remain on six-hour strategic periods.
+* **[Campaign]** Surviving airlift cargo is delivered when its transport flight completes the planned airlift route.
+* **[UI]** Pending transfer descriptions now include their estimated arrival time.
+
+## Fixes
+
+* **[Campaign]** Aborted airlift flights no longer deliver cargo when they return to base.
+* **[Campaign]** Helicopter airlift range validation now measures the pickup-to-dropoff leg instead of measuring pickup-to-pickup.
+* **[Campaign]** Existing 15.0.2 event queues are migrated to the five-minute transfer schedule.
+
 # 15.0.2
 
 Saves from 15.0.1 are compatible with 15.0.2.

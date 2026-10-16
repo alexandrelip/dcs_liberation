@@ -9,6 +9,7 @@ from typing import Any
 
 class CampaignEventKind(Enum):
     LOGISTICS = "logistics"
+    REPLENISHMENT = "replenishment"
     INCOME = "income"
     WEATHER = "weather"
     FRONT_LINE = "front-line"
@@ -17,6 +18,7 @@ class CampaignEventKind(Enum):
 
 class CampaignEventPriority(IntEnum):
     LOGISTICS = 10
+    REPLENISHMENT = 15
     INCOME = 20
     WEATHER = 30
     FRONT_LINE = 40
@@ -25,6 +27,7 @@ class CampaignEventPriority(IntEnum):
 
 EVENT_PRIORITIES = {
     CampaignEventKind.LOGISTICS: CampaignEventPriority.LOGISTICS,
+    CampaignEventKind.REPLENISHMENT: CampaignEventPriority.REPLENISHMENT,
     CampaignEventKind.INCOME: CampaignEventPriority.INCOME,
     CampaignEventKind.WEATHER: CampaignEventPriority.WEATHER,
     CampaignEventKind.FRONT_LINE: CampaignEventPriority.FRONT_LINE,

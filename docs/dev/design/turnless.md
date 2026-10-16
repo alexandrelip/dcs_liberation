@@ -112,6 +112,8 @@ The time-based systems are:
 
 - coalition income paid for each completed six-hour campaign period;
 - transfer progress, deliveries, and pilot replenishment every six hours;
+- route-length-based convoy and cargo-ship ETAs checked every five minutes;
+- airlift delivery when the transport flight completes its planned route;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.

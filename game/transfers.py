@@ -1,7 +1,8 @@
 """Implements support for ground unit transfers between bases.
 
-Ground units can be transferred between bases via a number of transport methods, and
-doing so can take multiple turns.
+Ground units can be transferred between bases via a number of transport methods. In
+turn-less campaigns each route leg has a persistent ETA; legacy campaigns continue to
+advance one leg per turn.
 
 There are a few main concepts here:
 
@@ -9,10 +10,9 @@ There are a few main concepts here:
   by its origin, destination, current position, and contents. TransferOrders persist
   across turns, and if no Transport is available to move the units in a given turn it
   will have no Transport assigned.
-* Transports: A Transport is the planned move of a group of units for a leg of the
-  journey *this turn*. A Transport has an assigned mode of transportation and has
-  vehicles assigned to move the units if needed. This might be a Convoy, a CargoShip, or
-  an Airlift.
+* Transports: A Transport is the planned move of a group of units for one leg of the
+  journey. A Transport has an assigned mode of transportation and has vehicles assigned
+  to move the units if needed. This might be a Convoy, a CargoShip, or an Airlift.
 
 The TransportMap (more accurately, it's subtypes) is responsible for managing the
 transports moving from A to B for the turn. Transfers that are moving between A and B
@@ -36,9 +36,18 @@ import logging
 import math
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import singledispatchmethod
-from typing import Generic, Iterator, List, Optional, Sequence, TYPE_CHECKING, TypeVar
+from typing import (
+    Any,
+    Generic,
+    Iterator,
+    List,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+    TypeVar,
+)
 
 from dcs.mapping import Point
 
@@ -55,7 +64,7 @@ from game.theater.transitnetwork import (
     TransitConnection,
     TransitNetwork,
 )
-from game.utils import meters, nautical_miles
+from game.utils import kph, knots, meters, nautical_miles
 
 if TYPE_CHECKING:
     from game import Game
@@ -71,6 +80,10 @@ class Transport:
 
     def description(self) -> str:
         raise NotImplementedError
+
+    @property
+    def travel_duration(self) -> timedelta | None:
+        return None
 
 
 @dataclass
@@ -100,6 +113,9 @@ class TransferOrder:
 
     request_airflift: bool = field(default=False)
 
+    leg_started_at: datetime | None = field(default=None)
+    leg_arrives_at: datetime | None = field(default=None)
+
     def __str__(self) -> str:
         """Returns the text that should be displayed for the transfer."""
         count = self.size
@@ -112,11 +128,19 @@ class TransferOrder:
         self.position = self.origin
         self.player = self.origin.is_friendly(to_player=True)
 
+    def __setstate__(self, state: dict[str, Any]) -> None:
+        state.setdefault("leg_started_at", None)
+        state.setdefault("leg_arrives_at", None)
+        self.__dict__.update(state)
+
     @property
     def description(self) -> str:
         if self.transport is None:
             return "No transports available"
-        return self.transport.description()
+        description = self.transport.description()
+        if self.leg_arrives_at is not None:
+            return f"{description}, ETA {self.leg_arrives_at:%Y-%m-%d %H:%M}"
+        return description
 
     def kill_all(self) -> None:
         self.units.clear()
@@ -214,6 +238,18 @@ class TransferOrder:
 
         return True
 
+    def begin_leg(self, now: datetime) -> None:
+        if self.transport is None:
+            raise RuntimeError("Cannot begin a transfer leg without transport")
+        duration = self.transport.travel_duration
+        if duration is None:
+            return
+        self.leg_started_at = now
+        self.leg_arrives_at = now + duration
+
+    def ready_to_proceed(self, now: datetime) -> bool:
+        return self.leg_arrives_at is not None and self.leg_arrives_at <= now
+
     def proceed(self) -> None:
         """
         Let the transfer proceed to the next stop and disbands it if the next stop
@@ -224,6 +260,8 @@ class TransferOrder:
 
         self.position = self.next_stop
         self.transport = None
+        self.leg_started_at = None
+        self.leg_arrives_at = None
 
         if self.completed:
             self.disband_at(self.position)
@@ -295,7 +333,7 @@ class AirliftPlanner:
 
         home = airfield.position
         pickup = self.transfer.position.position
-        drop_off = self.transfer.position.position
+        drop_off = self.next_stop.position
         if meters(home.distance_to_point(pickup)) > self.HELO_MAX_RANGE:
             return False
 
@@ -440,8 +478,20 @@ class MultiGroupTransport(MissionTarget, Transport):
     def description(self) -> str:
         raise NotImplementedError
 
+    @staticmethod
+    def travel_time_for_route(route: Sequence[Point], speed_kph: float) -> timedelta:
+        if speed_kph <= 0:
+            raise ValueError("Transport speed must be positive")
+        distance_meters = sum(
+            start.distance_to_point(end) for start, end in zip(route, route[1:])
+        )
+        meters_per_second = kph(speed_kph).meters_per_second
+        return timedelta(seconds=distance_meters / meters_per_second)
+
 
 class Convoy(MultiGroupTransport):
+    SPEED_KPH = 40
+
     def __init__(self, origin: ControlPoint, destination: ControlPoint) -> None:
         super().__init__(namegen.next_convoy_name(), origin, destination)
 
@@ -460,6 +510,14 @@ class Convoy(MultiGroupTransport):
     def route_end(self) -> Point:
         return self.destination.convoy_origin_for(self.origin)
 
+    @property
+    def route(self) -> Sequence[Point]:
+        return self.origin.convoy_route_to(self.destination)
+
+    @property
+    def travel_duration(self) -> timedelta:
+        return self.travel_time_for_route(self.route, self.SPEED_KPH)
+
     def description(self) -> str:
         return f"In a convoy from {self.origin} to {self.destination}"
 
@@ -468,6 +526,8 @@ class Convoy(MultiGroupTransport):
 
 
 class CargoShip(MultiGroupTransport):
+    SPEED_KNOTS = 12
+
     def __init__(self, origin: ControlPoint, destination: ControlPoint) -> None:
         super().__init__(namegen.next_cargo_ship_name(), origin, destination)
 
@@ -481,6 +541,13 @@ class CargoShip(MultiGroupTransport):
     @property
     def route(self) -> Sequence[Point]:
         return self.origin.shipping_lanes[self.destination]
+
+    @property
+    def travel_duration(self) -> timedelta:
+        return self.travel_time_for_route(
+            self.route,
+            knots(self.SPEED_KNOTS).kph,
+        )
 
     def description(self) -> str:
         return f"On a ship from {self.origin} to {self.destination}"
@@ -597,12 +664,16 @@ class PendingTransfers:
                 network.link_type(transfer.position, next_stop)
                 == TransitConnection.Road
             ):
-                return self.convoys.add(transfer, next_stop)
+                self.convoys.add(transfer, next_stop)
+                transfer.begin_leg(now)
+                return
             elif (
                 network.link_type(transfer.position, next_stop)
                 == TransitConnection.Shipping
             ):
-                return self.cargo_ships.add(transfer, next_stop)
+                self.cargo_ships.add(transfer, next_stop)
+                transfer.begin_leg(now)
+                return
         AirliftPlanner(self.game, transfer, next_stop).create_package_for_airlift(now)
 
     def new_transfer(self, transfer: TransferOrder, now: datetime) -> None:
@@ -667,21 +738,35 @@ class PendingTransfers:
         self.pending_transfers.remove(transfer)
         transfer.origin.base.commission_units(transfer.units)
 
-    def perform_transfers(self) -> None:
+    def perform_transfers(self, now: datetime | None = None) -> None:
         """
-        Performs completable transfers from the list of pending transfers and adds
-        uncompleted transfers which are en route back to the list of pending transfers.
-        Disbands all convoys and cargo ships
+        Advances transfers whose route leg has completed.
+
+        When ``now`` is omitted, every assigned transfer advances one leg and all
+        transports are disbanded to preserve legacy turn behavior. Turn-less callers
+        provide ``now`` so ground and sea transports remain active until their ETA.
         """
         self.disband_uncompletable_transfers()
         incomplete = []
         for transfer in self.pending_transfers:
-            transfer.proceed()
+            if now is None:
+                transfer.proceed()
+            elif isinstance(transfer.transport, MultiGroupTransport):
+                if transfer.leg_arrives_at is None:
+                    transfer.begin_leg(now)
+                if transfer.ready_to_proceed(now):
+                    transport = transfer.transport
+                    transfer.proceed()
+                    if isinstance(transport, Convoy):
+                        self.convoys.remove(transport, transfer)
+                    elif isinstance(transport, CargoShip):
+                        self.cargo_ships.remove(transport, transfer)
             if not transfer.completed:
                 incomplete.append(transfer)
         self.pending_transfers = incomplete
-        self.convoys.disband_all()
-        self.cargo_ships.disband_all()
+        if now is None:
+            self.convoys.disband_all()
+            self.cargo_ships.disband_all()
 
     def plan_transports(self, now: datetime) -> None:
         """

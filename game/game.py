@@ -247,7 +247,9 @@ class Game:
         replan_requested = False
         for event in progression.events:
             if event.kind is CampaignEventKind.LOGISTICS:
-                self._process_periodic_logistics(event.due_at)
+                self._process_continuous_transfers(event.due_at)
+            elif event.kind is CampaignEventKind.REPLENISHMENT:
+                self._process_periodic_replenishment(event.due_at)
             elif event.kind is CampaignEventKind.INCOME:
                 for coalition in self.coalitions:
                     coalition.accrue_income()
@@ -264,17 +266,18 @@ class Game:
             events.begin_new_turn()
         return progression
 
-    def _process_periodic_logistics(self, time: datetime) -> None:
+    def _process_continuous_transfers(self, time: datetime) -> None:
         for coalition in self.coalitions:
             coalition.update_transit_network()
-            coalition.transfers.perform_transfers()
+            coalition.transfers.perform_transfers(time)
+            coalition.transfers.plan_transports(time)
 
+    def _process_periodic_replenishment(self, time: datetime) -> None:
         for control_point in self.theater.controlpoints:
             control_point.ground_unit_orders.process(self, time)
 
         for coalition in self.coalitions:
             coalition.air_wing.process_periodic_replenishment()
-            coalition.transfers.plan_transports(time)
 
     def _process_periodic_front_lines(self, events: GameUpdateEvents) -> None:
         for control_point in self.theater.player_points():

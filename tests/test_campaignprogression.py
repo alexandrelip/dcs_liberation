@@ -7,12 +7,14 @@ import pytest
 from game import Game
 from game.campaignevents import (
     CampaignEventKind,
+    CampaignEventQueue,
     ScheduledCampaignEvent,
 )
 from game.campaignprogression import (
     CAMPAIGN_PERIOD,
     CampaignProgression,
     CampaignProgressionResult,
+    TRANSFER_POLL_INTERVAL,
 )
 from game.settings.settings import FastForwardStopCondition, Settings
 from game.sim import GameUpdateEvents
@@ -38,7 +40,10 @@ def test_progression_does_not_emit_partial_campaign_period() -> None:
     )
 
     assert result.income_periods == 0
-    assert result.count(CampaignEventKind.LOGISTICS) == 0
+    assert result.count(CampaignEventKind.LOGISTICS) == (
+        (CAMPAIGN_PERIOD - timedelta(seconds=1)) // TRANSFER_POLL_INTERVAL
+    )
+    assert result.count(CampaignEventKind.REPLENISHMENT) == 0
     assert result.count(CampaignEventKind.WEATHER) == 0
     assert result.count(CampaignEventKind.FRONT_LINE) == 0
 
@@ -50,7 +55,7 @@ def test_progression_emits_each_completed_campaign_period() -> None:
     second = progression.advance_to(START + timedelta(hours=18), ATO_INTERVAL)
 
     for kind in (
-        CampaignEventKind.LOGISTICS,
+        CampaignEventKind.REPLENISHMENT,
         CampaignEventKind.INCOME,
         CampaignEventKind.WEATHER,
         CampaignEventKind.FRONT_LINE,
@@ -116,6 +121,34 @@ def test_progression_migrates_15_0_1_accumulators() -> None:
 
     assert first.ato_replan_periods == 1
     assert second.income_periods == 1
+
+
+def test_progression_migrates_15_0_2_logistics_interval() -> None:
+    old_queue = CampaignEventQueue()
+    old_queue.schedule(
+        CampaignEventKind.LOGISTICS,
+        START + CAMPAIGN_PERIOD,
+        interval=CAMPAIGN_PERIOD,
+    )
+    progression: CampaignProgression = object.__new__(CampaignProgression)
+    progression.__setstate__(
+        {
+            "last_update": START,
+            "event_queue": old_queue,
+            "ato_replan_interval": ATO_INTERVAL,
+            "_legacy_ato_replan_elapsed": timedelta(),
+        }
+    )
+
+    next_logistics = progression.event_queue.next_for(CampaignEventKind.LOGISTICS)
+    next_replenishment = progression.event_queue.next_for(
+        CampaignEventKind.REPLENISHMENT
+    )
+
+    assert next_logistics is not None
+    assert next_logistics.due_at == START + TRANSFER_POLL_INTERVAL
+    assert next_replenishment is not None
+    assert next_replenishment.due_at == START + CAMPAIGN_PERIOD
 
 
 def simulation_game(*, turnless: bool) -> tuple[Game, Mock]:
@@ -227,44 +260,58 @@ def test_campaign_time_dispatches_income_and_weather() -> None:
     assert game.conditions is expected_conditions
 
 
-def test_periodic_logistics_preserves_dependency_order() -> None:
+def test_continuous_transfers_preserve_dependency_order() -> None:
+    game, _, blue, red = event_game()
+    calls: list[str] = []
+
+    blue.update_transit_network.side_effect = lambda: calls.append("blue-network")
+    blue.transfers.perform_transfers.side_effect = lambda time: calls.append(
+        "blue-transfer"
+    )
+    red.update_transit_network.side_effect = lambda: calls.append("red-network")
+    red.transfers.perform_transfers.side_effect = lambda time: calls.append(
+        "red-transfer"
+    )
+    blue.transfers.plan_transports.side_effect = lambda time: calls.append(
+        "blue-planning"
+    )
+    red.transfers.plan_transports.side_effect = lambda time: calls.append(
+        "red-planning"
+    )
+
+    game._process_continuous_transfers(START)
+
+    assert calls == [
+        "blue-network",
+        "blue-transfer",
+        "blue-planning",
+        "red-network",
+        "red-transfer",
+        "red-planning",
+    ]
+
+
+def test_periodic_replenishment_processes_orders_before_air_wings() -> None:
     game, _, blue, red = event_game()
     control_point = Mock()
     game.theater.controlpoints = [control_point]
     calls: list[str] = []
-
-    blue.update_transit_network.side_effect = lambda: calls.append("blue-network")
-    blue.transfers.perform_transfers.side_effect = lambda: calls.append("blue-transfer")
-    red.update_transit_network.side_effect = lambda: calls.append("red-network")
-    red.transfers.perform_transfers.side_effect = lambda: calls.append("red-transfer")
     control_point.ground_unit_orders.process.side_effect = (
         lambda game, time: calls.append("ground-orders")
     )
     blue.air_wing.process_periodic_replenishment.side_effect = lambda: calls.append(
         "blue-replenishment"
     )
-    blue.transfers.plan_transports.side_effect = lambda time: calls.append(
-        "blue-planning"
-    )
     red.air_wing.process_periodic_replenishment.side_effect = lambda: calls.append(
         "red-replenishment"
     )
-    red.transfers.plan_transports.side_effect = lambda time: calls.append(
-        "red-planning"
-    )
 
-    game._process_periodic_logistics(START)
+    game._process_periodic_replenishment(START)
 
     assert calls == [
-        "blue-network",
-        "blue-transfer",
-        "red-network",
-        "red-transfer",
         "ground-orders",
         "blue-replenishment",
-        "blue-planning",
         "red-replenishment",
-        "red-planning",
     ]
 
 

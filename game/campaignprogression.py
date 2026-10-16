@@ -11,6 +11,8 @@ from .campaignevents import (
 )
 
 CAMPAIGN_PERIOD = timedelta(hours=6)
+TRANSFER_POLL_INTERVAL = timedelta(minutes=5)
+EVENT_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True)
@@ -35,6 +37,7 @@ class CampaignProgression:
     event_queue: CampaignEventQueue = field(default_factory=CampaignEventQueue)
     ato_replan_interval: timedelta | None = None
     _legacy_ato_replan_elapsed: timedelta = field(default_factory=timedelta)
+    event_schema_version: int = EVENT_SCHEMA_VERSION
 
     def __setstate__(self, state: dict[str, Any]) -> None:
         last_update = state["last_update"]
@@ -56,8 +59,23 @@ class CampaignProgression:
             state["_legacy_ato_replan_elapsed"] = state.get(
                 "ato_replan_elapsed", timedelta()
             )
+        elif state.get("event_schema_version", 1) < EVENT_SCHEMA_VERSION:
+            queue = state["event_queue"]
+            queue.remove_kind(CampaignEventKind.LOGISTICS)
+            queue.remove_kind(CampaignEventKind.REPLENISHMENT)
+            queue.schedule(
+                CampaignEventKind.LOGISTICS,
+                last_update + TRANSFER_POLL_INTERVAL,
+                interval=TRANSFER_POLL_INTERVAL,
+            )
+            queue.schedule(
+                CampaignEventKind.REPLENISHMENT,
+                last_update + CAMPAIGN_PERIOD,
+                interval=CAMPAIGN_PERIOD,
+            )
         state.setdefault("ato_replan_interval", None)
         state.setdefault("_legacy_ato_replan_elapsed", timedelta())
+        state["event_schema_version"] = EVENT_SCHEMA_VERSION
         state.pop("income_elapsed", None)
         state.pop("ato_replan_elapsed", None)
         self.__dict__.update(state)
@@ -77,6 +95,11 @@ class CampaignProgression:
     ) -> None:
         queue.schedule(
             CampaignEventKind.LOGISTICS,
+            time + TRANSFER_POLL_INTERVAL,
+            interval=TRANSFER_POLL_INTERVAL,
+        )
+        queue.schedule(
+            CampaignEventKind.REPLENISHMENT,
             time + CAMPAIGN_PERIOD,
             interval=CAMPAIGN_PERIOD,
         )
