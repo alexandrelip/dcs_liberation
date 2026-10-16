@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import TYPE_CHECKING
 
 from pydantic import BaseModel
@@ -49,3 +50,22 @@ class GameJs(BaseModel):
             ),
             unculled_zones=UnculledZoneJs.from_game(game),
         )
+
+
+class CampaignEventJs(BaseModel):
+    occurred_at: datetime
+    category: str
+    title: str
+    details: str
+
+    @staticmethod
+    def from_game(game: Game, limit: int) -> list[CampaignEventJs]:
+        return [
+            CampaignEventJs(
+                occurred_at=entry.occurred_at,
+                category=entry.category.value,
+                title=entry.title,
+                details=entry.details,
+            )
+            for entry in game.campaign_history.recent(limit)
+        ]

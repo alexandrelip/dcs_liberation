@@ -21,6 +21,7 @@ from game.utils import Distance
 from . import naming
 from .ato.flighttype import FlightType
 from .campaignevents import CampaignEventKind
+from .campaignhistory import CampaignEventCategory, CampaignHistory
 from .campaignloader import CampaignAirWingConfig
 from .campaignprogression import CampaignProgression, CampaignProgressionResult
 from .coalition import Coalition
@@ -32,7 +33,7 @@ from .lasercodes.lasercoderegistry import LaserCodeRegistry
 from .persistence import SaveManager
 from .profiling import logged_duration
 from .settings import Settings
-from .theater import ConflictTheater
+from .theater import Airfield, ConflictTheater, Fob
 from .theater.bullseye import Bullseye
 from .theater.theatergroundobject import (
     EwrGroundObject,
@@ -119,6 +120,7 @@ class Game:
         self.name_generator = naming.namegen
         self.laser_code_registry = LaserCodeRegistry()
         self.continuous_ground_war = ContinuousGroundWar()
+        self.campaign_history = CampaignHistory()
 
         self.db = GameDb()
 
@@ -257,14 +259,25 @@ class Game:
             elif event.kind is CampaignEventKind.INCOME:
                 for coalition in self.coalitions:
                     coalition.accrue_income()
+                self.campaign_history.record(
+                    event.due_at,
+                    CampaignEventCategory.ECONOMY,
+                    "Coalition income distributed",
+                )
             elif event.kind is CampaignEventKind.WEATHER:
                 self.conditions = self.generate_conditions_at(event.due_at)
+                self.campaign_history.record(
+                    event.due_at,
+                    CampaignEventCategory.WEATHER,
+                    "Weather updated",
+                    str(self.conditions.weather),
+                )
             elif (
                 event.kind is CampaignEventKind.GROUND_COMBAT
                 and self.settings.continuous_ground_combat
                 and allow_abstract_combat
             ):
-                self._process_continuous_ground_combat(events)
+                self._process_continuous_ground_combat(event.due_at, events)
             elif event.kind is CampaignEventKind.FRONT_LINE:
                 if not self.settings.continuous_ground_combat:
                     self._process_periodic_front_lines(events)
@@ -272,10 +285,23 @@ class Game:
                 replan_requested = True
 
         if replan_requested and allow_ato_replan:
-            ReactiveAto.prune_invalid_packages(self, self.blue, events)
-            ReactiveAto.prune_invalid_packages(self, self.red, events)
-            ReactiveAto.plan_interceptions(self, self.blue, time)
-            ReactiveAto.plan_interceptions(self, self.red, time)
+            for coalition in self.coalitions:
+                cancelled = ReactiveAto.prune_invalid_packages(self, coalition, events)
+                for cancellation in cancelled:
+                    self.campaign_history.record(
+                        time,
+                        CampaignEventCategory.ATO,
+                        "Package cancelled",
+                        cancellation.reason,
+                    )
+                interceptions = ReactiveAto.plan_interceptions(self, coalition, time)
+                for package in interceptions:
+                    self.campaign_history.record(
+                        time,
+                        CampaignEventCategory.ATO,
+                        "QRA interception planned",
+                        f"{package.target}",
+                    )
             self.blue.plan_missions(time)
             self.red.plan_missions(time)
             events.begin_new_turn()
@@ -284,7 +310,15 @@ class Game:
     def _process_continuous_transfers(self, time: datetime) -> None:
         for coalition in self.coalitions:
             coalition.update_transit_network()
-            coalition.transfers.perform_transfers(time)
+            advanced = coalition.transfers.perform_transfers(time)
+            if advanced:
+                side = "Blue" if coalition.player else "Red"
+                self.campaign_history.record(
+                    time,
+                    CampaignEventCategory.LOGISTICS,
+                    f"{side} transfers advanced",
+                    f"{advanced} route leg(s) completed",
+                )
             coalition.transfers.plan_transports(time)
 
     def _process_periodic_replenishment(self, time: datetime) -> None:
@@ -301,9 +335,46 @@ class Game:
                 events.update_front_line(front_line)
             control_point.base.affect_strength(+PLAYER_BASE_STRENGTH_RECOVERY)
 
-    def _process_continuous_ground_combat(self, events: GameUpdateEvents) -> None:
+    def _process_continuous_ground_combat(
+        self,
+        time: datetime,
+        events: GameUpdateEvents,
+    ) -> None:
         for front_line in list(self.theater.conflicts()):
-            self.continuous_ground_war.resolve(front_line)
+            outcome = self.continuous_ground_war.resolve(front_line)
+            blue_losses = sum(outcome.blue_losses.values())
+            red_losses = sum(outcome.red_losses.values())
+            if blue_losses or red_losses or outcome.strength_delta:
+                self.campaign_history.record(
+                    time,
+                    CampaignEventCategory.COMBAT,
+                    f"Ground combat at {front_line}",
+                    (
+                        f"Blue losses: {blue_losses}; Red losses: {red_losses}; "
+                        f"FLOT delta: {outcome.strength_delta:+.4f}"
+                    ),
+                )
+            if outcome.capture_by_player is not None:
+                captured = (
+                    front_line.red_cp
+                    if outcome.capture_by_player
+                    else front_line.blue_cp
+                )
+                if isinstance(captured, (Airfield, Fob)):
+                    captured.capture(self, events, outcome.capture_by_player)
+                    from .sim.missionresultsprocessor import MissionResultsProcessor
+
+                    MissionResultsProcessor(self).redeploy_units(captured)
+                    owner = "Blue" if outcome.capture_by_player else "Red"
+                    self.campaign_history.record(
+                        time,
+                        CampaignEventCategory.COMBAT,
+                        f"{captured} captured by {owner}",
+                    )
+                    events.update_control_point(front_line.blue_cp)
+                    events.update_control_point(front_line.red_cp)
+                    events.begin_new_turn()
+                    continue
             front_line.update_position()
             events.update_front_line(front_line)
             events.update_control_point(front_line.blue_cp)
@@ -320,6 +391,8 @@ class Game:
             )
         if not hasattr(self, "continuous_ground_war"):
             self.continuous_ground_war = ContinuousGroundWar()
+        if not hasattr(self, "campaign_history"):
+            self.campaign_history = CampaignHistory()
         # Hack: Replace the global name generator state with the state from the save
         # game.
         #

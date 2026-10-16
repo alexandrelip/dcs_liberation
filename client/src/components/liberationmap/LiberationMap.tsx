@@ -2,6 +2,7 @@ import { selectMapCenter } from "../../api/mapSlice";
 import { useAppSelector } from "../../app/hooks";
 import AircraftLayer from "../aircraftlayer";
 import AirDefenseRangeLayer from "../airdefenserangelayer";
+import CampaignHistory from "../campaignhistory/CampaignHistory";
 import CombatLayer from "../combatlayer";
 import ControlPointsLayer from "../controlpointslayer";
 import CullingExclusionZones from "../cullingexclusionzones/CullingExclusionZones";
@@ -109,6 +110,7 @@ export default function LiberationMap() {
         <CullingExclusionZones />
         <WaypointDebugZonesControls />
       </LayersControl>
+      <CampaignHistory />
     </MapContainer>
   );
 }

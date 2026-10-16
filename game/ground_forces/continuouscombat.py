@@ -44,6 +44,7 @@ class GroundCombatOutcome:
     blue_losses: dict[GroundUnitType, int]
     red_losses: dict[GroundUnitType, int]
     strength_delta: float
+    capture_by_player: bool | None = None
 
 
 @dataclass
@@ -90,7 +91,23 @@ class ContinuousGroundWar:
         )
         blue.base.affect_strength(strength_delta)
         red.base.affect_strength(-strength_delta)
-        return GroundCombatOutcome(blue_losses, red_losses, strength_delta)
+        capture_by_player = None
+        if (
+            red.base.strength <= 0
+            and blue.base.total_armor
+            and blue_profile.advance > 0
+        ):
+            capture_by_player = True
+        elif (
+            blue.base.strength <= 0 and red.base.total_armor and red_profile.advance > 0
+        ):
+            capture_by_player = False
+        return GroundCombatOutcome(
+            blue_losses,
+            red_losses,
+            strength_delta,
+            capture_by_player,
+        )
 
     @staticmethod
     def _pressure(attack: float, defense: float) -> float:

@@ -16,6 +16,7 @@ from game.campaignprogression import (
     CampaignProgressionResult,
     TRANSFER_POLL_INTERVAL,
 )
+from game.ground_forces.continuouscombat import GroundCombatOutcome
 from game.settings.settings import FastForwardStopCondition, Settings
 from game.sim import GameUpdateEvents
 from game.sim.missionsimulation import MissionSimulation
@@ -228,6 +229,7 @@ def event_game(
     game.campaign_progression.advance_to.return_value = CampaignProgressionResult(
         events
     )
+    game.campaign_history = Mock()
     game.blue = Mock()
     game.red = Mock()
     game.blue.ato.packages = []
@@ -298,6 +300,11 @@ def test_campaign_time_avoids_double_counting_dcs_ground_combat(
     conflicts = cast(Mock, game.theater.conflicts)
     conflicts.return_value = [front_line]
     game.continuous_ground_war = Mock()
+    game.continuous_ground_war.resolve.return_value = GroundCombatOutcome(
+        {},
+        {},
+        0.01,
+    )
     events = Mock(spec=GameUpdateEvents)
 
     game.advance_campaign_time(

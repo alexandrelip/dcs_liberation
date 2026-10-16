@@ -1,13 +1,13 @@
 from __future__ import annotations
 
 import logging
-import random
 from collections.abc import Iterator
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
 from game.ato.flightstate import InCombat
 from game.settings.settings import CombatResolutionMethod
+from .combatpower import deterministic_roll, sam_loss_probability
 from .frozencombat import FrozenCombat
 from .. import GameUpdateEvents
 
@@ -52,11 +52,23 @@ class DefendingSam(FrozenCombat):
             self.flight.state.exit_combat(events, time, elapsed_time)
             return
 
-        if random.random() >= 0.5:
+        loss_probability = sam_loss_probability(self.flight, self.air_defenses)
+        if deterministic_roll(self.id) < loss_probability:
             logging.debug(f"Air defense combat auto-resolved with {self.flight} lost")
             self.flight.kill(results, events)
+            outcome = "flight lost"
         else:
             logging.debug(
-                f"Air defense combat auto-resolved with {self.flight} surviving"
+                "%s survived air defenses (loss probability %.1f%%)",
+                self.flight,
+                loss_probability * 100,
             )
             self.flight.state.exit_combat(events, time, elapsed_time)
+            outcome = "flight survived"
+        results.record_combat(
+            "SAM engagement auto-resolved",
+            (
+                f"{self.flight}; defenses={len(self.air_defenses)}; "
+                f"loss probability={loss_probability:.1%}; {outcome}"
+            ),
+        )

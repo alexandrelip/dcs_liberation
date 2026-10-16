@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import logging
-import random
 from datetime import datetime, timedelta
 from typing import TYPE_CHECKING
 
@@ -10,6 +9,12 @@ from shapely.ops import unary_union
 from game.ato.flightstate import InCombat, InFlight
 from game.settings.settings import CombatResolutionMethod
 from game.utils import dcs_to_shapely_point
+from .combatpower import (
+    air_loss_probability,
+    deterministic_roll,
+    flight_combat_power,
+    side_combat_power,
+)
 from .joinablecombat import JoinableCombat
 from .. import GameUpdateEvents
 
@@ -84,30 +89,35 @@ class AirCombat(JoinableCombat):
                 blue.append(flight)
             else:
                 red.append(flight)
-        if len(blue) > len(red):
-            winner = blue
-            loser = red
-        elif len(blue) < len(red):
-            winner = red
-            loser = blue
-        elif random.random() >= 0.5:
-            winner = blue
-            loser = red
-        else:
-            winner = red
-            loser = blue
-
-        if winner == blue:
-            logging.debug(f"{self} auto-resolved as blue victory")
-        else:
-            logging.debug(f"{self} auto-resolved as red victory")
-
-        for flight in loser:
-            flight.kill(results, events)
-
-        for flight in winner:
+        blue_power = side_combat_power(blue)
+        red_power = side_combat_power(red)
+        logging.debug(
+            "%s auto-resolve power: blue=%.2f red=%.2f",
+            self,
+            blue_power,
+            red_power,
+        )
+        losses = []
+        for index, flight in enumerate(
+            sorted(self.flights, key=lambda candidate: candidate.id.int)
+        ):
             assert isinstance(flight.state, InCombat)
-            if random.random() >= 0.5:
+            if flight.squadron.player:
+                own_power = flight_combat_power(flight)
+                opponent_power = red_power
+            else:
+                own_power = flight_combat_power(flight)
+                opponent_power = blue_power
+            probability = air_loss_probability(own_power, opponent_power)
+            if deterministic_roll(self.id, index + 1) < probability:
                 flight.kill(results, events)
+                losses.append(str(flight))
             else:
                 flight.state.exit_combat(events, time, elapsed_time)
+        results.record_combat(
+            "Air combat auto-resolved",
+            (
+                f"{self}; blue power={blue_power:.2f}; red power={red_power:.2f}; "
+                f"lost flights={', '.join(losses) if losses else 'none'}"
+            ),
+        )

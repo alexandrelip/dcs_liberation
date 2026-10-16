@@ -429,16 +429,16 @@ class Settings:
         "Resolve combat when fast forwarding by",
         page=MISSION_GENERATOR_PAGE,
         section=GAMEPLAY_SECTION,
-        default=CombatResolutionMethod.SKIP,
+        default=CombatResolutionMethod.RESOLVE,
         choices={
             "Pause": CombatResolutionMethod.PAUSE,
-            "Resolving combat (WIP)": CombatResolutionMethod.RESOLVE,
+            "Capability-based auto resolve": CombatResolutionMethod.RESOLVE,
             "Skipping combat": CombatResolutionMethod.SKIP,
         },
         detail=(
             "Determines what happens when combat occurs when fast forwarding. "
             "Pause: pause fast forward and generate mission. Fast forwarding may stop before the condition specified in the above setting. "
-            "Resolving combat (WIP): auto resolve combat. This method is very rudimentary and will result in large losses. "
+            "Capability-based auto resolve: resolve air and SAM combat deterministically using aircraft, mission, pilot, fuel, health, and threat capability. "
             "Skipping combat: skip combat as if it did not occur."
         ),
     )

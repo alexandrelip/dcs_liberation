@@ -738,7 +738,7 @@ class PendingTransfers:
         self.pending_transfers.remove(transfer)
         transfer.origin.base.commission_units(transfer.units)
 
-    def perform_transfers(self, now: datetime | None = None) -> None:
+    def perform_transfers(self, now: datetime | None = None) -> int:
         """
         Advances transfers whose route leg has completed.
 
@@ -748,15 +748,20 @@ class PendingTransfers:
         """
         self.disband_uncompletable_transfers()
         incomplete = []
+        advanced = 0
         for transfer in self.pending_transfers:
             if now is None:
+                previous_position = transfer.position
                 transfer.proceed()
+                if transfer.position is not previous_position:
+                    advanced += 1
             elif isinstance(transfer.transport, MultiGroupTransport):
                 if transfer.leg_arrives_at is None:
                     transfer.begin_leg(now)
                 if transfer.ready_to_proceed(now):
                     transport = transfer.transport
                     transfer.proceed()
+                    advanced += 1
                     if isinstance(transport, Convoy):
                         self.convoys.remove(transport, transfer)
                     elif isinstance(transport, CargoShip):
@@ -767,6 +772,7 @@ class PendingTransfers:
         if now is None:
             self.convoys.disband_all()
             self.cargo_ships.disband_all()
+        return advanced
 
     def plan_transports(self, now: datetime) -> None:
         """

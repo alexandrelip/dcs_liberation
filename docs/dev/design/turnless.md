@@ -120,6 +120,9 @@ The time-based systems are:
 - damage-adjusted aircraft turnaround;
 - periodic invalidation of impossible unlaunched packages;
 - automatic two-aircraft QRA within 100 NM of threatened friendly bases;
+- deterministic capability-based air and SAM autoresolve;
+- strategic capture of land airfields and FOBs by continuous ground offensives;
+- a bounded campaign history exposed in the map UI and local API;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
@@ -146,6 +149,13 @@ packages are removed when their target, ownership, or departure runway makes
 them impossible, allowing the theater commander to replace them. QRA currently
 uses proximity rather than sensor-level detection, and airborne retasking
 remains future work.
+
+Air and SAM autoresolve now use reproducible capability scoring rather than
+global random coin flips. Ground offensives can capture land airfields and
+FOBs through the same ownership, retreat, redeployment, and IADS paths used by
+DCS debriefing. Strategic events are retained in a bounded history and shown
+in the map UI. Individual missile inventories, sensor geometry, and player
+theater-priority controls are not yet modeled.
 
 ### Front-line progress rework
 

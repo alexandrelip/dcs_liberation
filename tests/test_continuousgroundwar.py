@@ -104,3 +104,15 @@ def test_ground_war_state_round_trips_through_save() -> None:
     restored = pickle.loads(pickle.dumps(war))
 
     assert restored.attrition_credit == war.attrition_credit
+
+
+def test_offensive_force_captures_zero_strength_enemy_base() -> None:
+    line, _, _ = front_line(
+        blue_stance=CombatStance.AGGRESSIVE,
+        red_stance=CombatStance.DEFENSIVE,
+    )
+    line.red_cp.base.strength = 0.001
+
+    outcome = ContinuousGroundWar().resolve(line)
+
+    assert outcome.capture_by_player is True

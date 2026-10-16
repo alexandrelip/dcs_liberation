@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Optional, TYPE_CHECKING
 
 from game.debriefing import Debriefing
+from game.campaignhistory import CampaignEventCategory
 from game.missiongenerator import MissionGenerator
 from game.settings.settings import FastForwardStopCondition, CombatResolutionMethod
 from game.unitmap import UnitMap
@@ -130,6 +131,14 @@ class MissionSimulation:
                 # been resolved in-game
                 self.tick(events, CombatResolutionMethod.SKIP, force_continue=True)
             results_processor.commit_aircraft_mission_states(debriefing)
+            for combat_event in self.aircraft_simulation.results.combat_events:
+                self.game.campaign_history.record(
+                    self.game.simulation_time,
+                    CampaignEventCategory.COMBAT,
+                    combat_event.title,
+                    combat_event.details,
+                )
+            self.aircraft_simulation.results.combat_events.clear()
             self.game.blue.plan_missions(self.game.simulation_time)
             self.game.red.plan_missions(self.game.simulation_time)
             self.game.game_stats.update(self.game)

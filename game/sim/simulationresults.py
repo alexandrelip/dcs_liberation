@@ -15,9 +15,19 @@ if TYPE_CHECKING:
 # be reproducible since we cannot replay the auto-resolution that the player saw. We
 # need to be able to serialize this data so bug repro can include the auto-resolved
 # results.
+@dataclass(frozen=True)
+class SimulationCombatEvent:
+    title: str
+    details: str
+
+
 @dataclass
 class SimulationResults:
     air_losses: list[FlyingUnit] = field(default_factory=list)
+    combat_events: list[SimulationCombatEvent] = field(default_factory=list)
 
     def kill_pilot(self, flight: Flight, pilot: Pilot) -> None:
         self.air_losses.append(FlyingUnit(flight, pilot))
+
+    def record_combat(self, title: str, details: str) -> None:
+        self.combat_events.append(SimulationCombatEvent(title, details))

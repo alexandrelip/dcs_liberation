@@ -1,3 +1,29 @@
+# 15.4.0
+
+Saves from 15.3.0 are compatible with 15.4.0.
+
+## Features/Improvements
+
+* **[Campaign]** Replaced random 50/50 air-combat autoresolve with deterministic capability scoring based on aircraft quantity, price, speed, mission role, configured skill, pilot experience, health, and fuel.
+* **[Campaign]** Replaced random 50/50 SAM autoresolve with deterministic risk derived from defense value, unit count, threat range, flight capability, and SEAD/DEAD specialization.
+* **[Campaign]** Capability-based autoresolve is now the default for new settings; pause and skip modes remain available.
+* **[Campaign]** Continuous ground offensives can capture land airfields and FOBs through the existing retreat, redeployment, IADS, ownership, and ATO invalidation paths.
+* **[Campaign]** Added a persistent, bounded strategic history for ATO changes, QRA, income, weather, logistics, ground combat, captures, and abstract combat.
+* **[UI]** Added a collapsible campaign-history panel to the map, refreshed from the local API.
+* **[API]** Added `GET /game/history` with bounded newest-first campaign events.
+
+## Fixes
+
+* **[Campaign]** Abstract combat outcomes are reproducible from combat UUID instead of depending on global random state.
+* **[Campaign]** Strategic capture does not emit a stale front-line update after capture removes that front line.
+* **[Campaign]** Campaign history is capped at 2,000 entries to prevent unbounded save growth.
+
+## Known limitations
+
+* Aircraft loss resolution is currently flight-level because partial simulated flight losses are not yet represented by `SimulationResults`.
+* SAM modeling uses aggregate site capability rather than individual missile inventory, tracking channels, ECM geometry, or altitude envelopes.
+* Detailed squadron weapon stores and player-controlled theater priorities remain future work.
+
 # 15.3.0
 
 Saves from 15.2.0 are compatible with 15.3.0.
