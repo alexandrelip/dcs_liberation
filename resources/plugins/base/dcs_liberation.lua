@@ -169,6 +169,13 @@ local function refresh_managed_ai_groups()
     end
 end
 
+local function disable_ai_cohort()
+    for _, group in ipairs(ai_enabled_groups) do
+        set_group_ai(group, false)
+    end
+    ai_enabled_groups = {}
+end
+
 local function update_ai_cohort(_, schedule_time)
     if mission_ended then
         for _, group in ipairs(ai_managed_groups) do
@@ -182,10 +189,7 @@ local function update_ai_cohort(_, schedule_time)
         ai_last_refresh_time = schedule_time
     end
 
-    for _, group in ipairs(ai_enabled_groups) do
-        set_group_ai(group, false)
-    end
-    ai_enabled_groups = {}
+    disable_ai_cohort()
 
     local group_count = #ai_managed_groups
     if group_count == 0 then
@@ -193,7 +197,13 @@ local function update_ai_cohort(_, schedule_time)
     end
 
     local active_percent = configured_ground_ai_percent()
-    local active_count = math.max(1, math.ceil(group_count * active_percent / 100))
+    local exact_active_count = group_count * active_percent / 100
+    local active_count = math.floor(exact_active_count)
+    local active_duration = AI_COHORT_WINDOW_SECONDS
+    if active_count == 0 then
+        active_count = 1
+        active_duration = exact_active_count * AI_COHORT_WINDOW_SECONDS
+    end
     for offset = 0, active_count - 1 do
         local index = ((ai_group_cursor + offset - 1) % group_count) + 1
         local group = ai_managed_groups[index]
@@ -203,6 +213,13 @@ local function update_ai_cohort(_, schedule_time)
     end
     ai_group_cursor = ((ai_group_cursor + active_count - 1) % group_count) + 1
 
+    if active_duration < AI_COHORT_WINDOW_SECONDS then
+        timer.scheduleFunction(
+            disable_ai_cohort,
+            nil,
+            schedule_time + active_duration
+        )
+    end
     return schedule_time + AI_COHORT_WINDOW_SECONDS
 end
 

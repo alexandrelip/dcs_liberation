@@ -1,3 +1,4 @@
+from pathlib import Path
 from unittest.mock import Mock, patch
 
 from game import Game
@@ -250,3 +251,12 @@ def test_only_player_packages_expand_the_detailed_culling_bubble() -> None:
         red_position,
         player_target,
     ]
+
+
+def test_lua_ai_cohort_never_rounds_above_configured_percentage() -> None:
+    script = Path("resources/plugins/base/dcs_liberation.lua").read_text(
+        encoding="utf-8"
+    )
+
+    assert "local exact_active_count = group_count * active_percent / 100" in script
+    assert "local active_count = math.floor(exact_active_count)" in script
