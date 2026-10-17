@@ -1,3 +1,38 @@
+# 15.6.0
+
+Saves from 15.5.0 are compatible with 15.6.0.
+
+## Features/Improvements
+
+* **[Performance]** Enabled the existing distance-based mission culling bubble by default for new campaigns.
+* **[Performance]** Untasked squadron aircraft are no longer rendered as uncontrolled ramp objects by default; they remain available to the campaign and can be restored with the new performance setting.
+* **[Performance]** Land-based AI flights now use late activation until their scheduled startup time instead of occupying parking spots as uncontrolled active aircraft for the whole mission.
+* **[Performance]** Objective vehicle and ship groups now use a 35 km dynamic activation bubble around active air, land, and sea units. Long-range threats activate before their engagement envelope.
+* **[Performance]** Capped the MIST mission scheduler at 15 Hz by default instead of its original 100 Hz update loop.
+* **[Performance]** Added a 15% rotating controller budget for ground and non-carrier naval AI so no more than one cohort thinks simultaneously.
+* **[Performance]** Scaled Skynet IADS contact evaluation to the same 15% AI budget.
+* **[Performance]** Added per-coalition tactical-layer limits of three SAM sites, six helicopters, fifteen front-line vehicles, five infantry, twenty combat aircraft, one tanker, one AEW&C aircraft, one carrier, and six non-carrier ships.
+* **[Campaign]** Flights and units beyond the tactical-layer limits remain in the persistent campaign and are resolved by the strategic simulation instead of being deleted.
+* **[Campaign]** Player packages are always generated ahead of AI packages and define the local deaggregation bubble for nearby objectives.
+* **[Campaign]** Both coalitions now default to an aggressive continuous-ground posture so surviving forces advance toward connected enemy bases.
+
+## Fixes
+
+* **[Mission Generation]** Prevented large air wings from adding every unassigned inventory aircraft to each DCS mission, substantially reducing active unit count and main-thread load.
+* **[Mission Generation]** Distant objective groups remain available as mission targets without consuming DCS simulation time before a relevant unit approaches.
+* **[Performance]** Late-activated groups no longer count their own inactive units as activation-bubble anchors, preventing every deferred objective from activating at mission start.
+* **[Debriefing]** Aircraft snapshots now exclude late-activated aircraft that have not entered the DCS simulation.
+* **[Mission Generation]** Carrier escorts, cargo ships, front-line vehicles, infantry, support aircraft, and combat aircraft now share explicit per-coalition budgets rather than scaling without bound with campaign size.
+
+## Known limitations
+
+* DCS still simulates every fragged package and every unit inside an active objective bubble; campaign-level abstraction of off-bubble ATO packages remains future work.
+* Late-activated AI flights are unavailable as parked OCA targets before their scheduled startup.
+* Dynamic objective activation is one-way for the duration of a DCS mission; activated groups are not despawned again when the bubble moves away.
+* DCS does not expose a per-unit CPU quota. The 15% setting limits eligible controller concurrency and script frequency rather than guaranteeing that the DCS process uses exactly 15% CPU.
+* Aircraft AI is not controller-throttled in flight because disabling a flight controller can make the aircraft depart controlled flight; aircraft load is controlled through scheduled late activation instead.
+* Tactical limits are ceilings, not guaranteed minimums. A coalition with no valid helicopter mission, available airframe, carrier, or other requested asset leaves that slot unused.
+
 # 15.5.0
 
 Saves from 15.4.0 are compatible with 15.5.0.

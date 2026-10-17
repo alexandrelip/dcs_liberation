@@ -16,6 +16,7 @@ from game.campaignprogression import (
     CampaignProgressionResult,
     TRANSFER_POLL_INTERVAL,
 )
+from game.ground_forces.combat_stance import CombatStance
 from game.ground_forces.continuouscombat import GroundCombatOutcome
 from game.settings.settings import FastForwardStopCondition, Settings
 from game.sim import GameUpdateEvents
@@ -315,7 +316,10 @@ def test_campaign_time_avoids_double_counting_dcs_ground_combat(
     )
 
     if allow_abstract_combat:
-        game.continuous_ground_war.resolve.assert_called_once_with(front_line)
+        game.continuous_ground_war.resolve.assert_called_once_with(
+            front_line,
+            CombatStance.AGGRESSIVE,
+        )
         front_line.update_position.assert_called_once_with()
         events.update_front_line.assert_called_once_with(front_line)
         assert events.update_control_point.call_args_list == [

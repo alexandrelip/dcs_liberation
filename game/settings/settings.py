@@ -669,12 +669,160 @@ class Settings:
         section=PERFORMANCE_SECTION,
         default=True,
     )
+    perf_spawn_unused_aircraft: bool = boolean_option(
+        "Render untasked aircraft at airfields",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=False,
+        detail=(
+            "Spawns every available aircraft that is not assigned to a mission as an "
+            "uncontrolled ramp object. Enable only for visual immersion on systems "
+            "with enough CPU headroom."
+        ),
+    )
+    perf_late_activate_ai_aircraft: bool = boolean_option(
+        "Late activate AI aircraft",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=True,
+        detail=(
+            "Keeps land-based AI flights out of the DCS world until their scheduled "
+            "startup time. Disabling this renders cold-start AI aircraft on their "
+            "parking spots for the entire mission."
+        ),
+    )
+    perf_dynamic_ground_activation: bool = boolean_option(
+        "Dynamically activate ground objectives",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=True,
+        detail=(
+            "Keeps objective vehicle and ship groups inactive until an active unit "
+            "approaches. Front-line forces, convoys, carriers, and static objects are "
+            "not deferred."
+        ),
+    )
+    perf_dynamic_ground_activation_distance: int = bounded_int_option(
+        "Ground objective activation distance (km)",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=35,
+        min=10,
+        max=200,
+    )
+    perf_script_update_hz: int = bounded_int_option(
+        "Mission script update rate (Hz)",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=15,
+        min=5,
+        max=100,
+        detail=(
+            "Caps the MIST mission scheduler update rate. The original scheduler runs "
+            "at 100 Hz; 15 Hz retains responsive triggers while reducing Lua CPU load."
+        ),
+    )
+    perf_ground_ai_active_percent: int = bounded_int_option(
+        "Ground and naval AI active cohort (%)",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=15,
+        min=5,
+        max=100,
+        detail=(
+            "Limits the share of eligible ground and naval AI group controllers that "
+            "can think simultaneously. Aircraft, carriers, and player-controlled "
+            "groups are excluded for flight and control safety."
+        ),
+    )
+    perf_max_active_sam_sites_per_coalition: int = bounded_int_option(
+        "Maximum active SAM sites per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=3,
+        min=0,
+        max=20,
+    )
+    perf_max_active_helicopters_per_coalition: int = bounded_int_option(
+        "Maximum active helicopters per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=6,
+        min=0,
+        max=100,
+    )
+    perf_max_active_frontline_vehicles_per_coalition: int = bounded_int_option(
+        "Maximum active frontline vehicles per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=15,
+        min=0,
+        max=200,
+    )
+    perf_max_active_infantry_per_coalition: int = bounded_int_option(
+        "Maximum active infantry per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=5,
+        min=0,
+        max=100,
+    )
+    perf_max_active_combat_aircraft_per_coalition: int = bounded_int_option(
+        "Maximum active combat aircraft per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=20,
+        min=0,
+        max=200,
+    )
+    perf_max_active_tankers_per_coalition: int = bounded_int_option(
+        "Maximum active tankers per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=1,
+        min=0,
+        max=10,
+    )
+    perf_max_active_awacs_per_coalition: int = bounded_int_option(
+        "Maximum active AEW&C aircraft per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=1,
+        min=0,
+        max=10,
+    )
+    perf_max_active_carriers_per_coalition: int = bounded_int_option(
+        "Maximum active carriers per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=1,
+        min=0,
+        max=10,
+    )
+    perf_max_active_ships_per_coalition: int = bounded_int_option(
+        "Maximum active non-carrier ships per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=6,
+        min=0,
+        max=50,
+    )
+    continuous_ground_force_offensive: bool = boolean_option(
+        "Force both coalitions to advance toward enemy bases",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=True,
+        detail=(
+            "Uses an aggressive stance for continuous and in-mission front-line "
+            "movement so both coalitions attempt to capture connected bases."
+        ),
+    )
     # Performance culling
     perf_culling: bool = boolean_option(
         "Culling of distant units enabled",
         page=MISSION_GENERATOR_PAGE,
         section=PERFORMANCE_SECTION,
-        default=False,
+        default=True,
     )
     perf_culling_distance: int = bounded_int_option(
         "Culling distance (km)",

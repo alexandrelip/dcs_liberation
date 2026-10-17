@@ -281,6 +281,12 @@ class WaypointGenerator:
         return not self.settings.never_delay_player_flights
 
     def should_activate_late(self) -> bool:
+        if (
+            not self.flight.client_count
+            and self.settings.perf_late_activate_ai_aircraft
+        ):
+            return True
+
         if self.flight.start_type is not StartType.COLD:
             # Avoid spawning aircraft in the air or on the runway until it's
             # time for their mission. Also avoid burning through gas spawning

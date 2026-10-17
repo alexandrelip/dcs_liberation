@@ -16,6 +16,336 @@ killed_ground_units = {} -- keep track of static ground object deaths
 unit_hit_point_updates = {} -- stores updates to unit hit points, triggered by S_EVENT_HIT
 mission_ended = false
 
+local AI_COHORT_WINDOW_SECONDS = 1
+local AI_GROUP_REFRESH_SECONDS = 5
+local ai_managed_groups = {}
+local ai_enabled_groups = {}
+local ai_group_cursor = 1
+local ai_last_refresh_time = -math.huge
+local deferred_ground_group_names = {}
+local activation_anchor_group_names = {}
+local activated_force_counts = {
+    blue = {
+        samSites = 0,
+        samSiteNames = {},
+        ships = 0,
+        groundVehicles = 0,
+        infantry = 0
+    },
+    red = {
+        samSites = 0,
+        samSiteNames = {},
+        ships = 0,
+        groundVehicles = 0,
+        infantry = 0
+    }
+}
+
+if dcsLiberation and dcsLiberation.DeferredGroundGroups then
+    for _, data in pairs(dcsLiberation.DeferredGroundGroups) do
+        deferred_ground_group_names[data.dcsGroupName] = true
+    end
+end
+if dcsLiberation and dcsLiberation.ActivationAnchorGroups then
+    for _, group_name in pairs(dcsLiberation.ActivationAnchorGroups) do
+        activation_anchor_group_names[group_name] = true
+    end
+end
+
+local function configured_ground_ai_percent()
+    if dcsLiberation and dcsLiberation.Performance then
+        local configured = tonumber(dcsLiberation.Performance.groundAiActivePercent)
+        if configured then
+            return math.max(5, math.min(100, configured))
+        end
+    end
+    return 15
+end
+
+local function carrier_group_names()
+    local names = {}
+    if dcsLiberation and dcsLiberation.Carriers then
+        for _, carrier in pairs(dcsLiberation.Carriers) do
+            names[carrier.dcsGroupName] = true
+        end
+    end
+    return names
+end
+
+local function unit_is_active(unit)
+    if not unit:isExist() then
+        return false
+    end
+    local success, active = pcall(function()
+        return unit:isActive()
+    end)
+    return success and active
+end
+
+local function group_is_active(group)
+    if not group or not group:isExist() then
+        return false
+    end
+    for _, unit in ipairs(group:getUnits()) do
+        if unit_is_active(unit) then
+            return true
+        end
+    end
+    return false
+end
+
+local function group_has_player(group)
+    for _, unit in ipairs(group:getUnits()) do
+        if unit_is_active(unit) and unit:getPlayerName() then
+            return true
+        end
+    end
+    return false
+end
+
+local function set_group_ai(group, enabled)
+    if not group_is_active(group) then
+        return false
+    end
+    local success, error_message = pcall(function()
+        local controller = group:getController()
+        if controller then
+            controller:setOnOff(enabled)
+        end
+    end)
+    if not success then
+        logger:warn(
+            "Unable to set AI state for "..group:getName()..": "..tostring(error_message)
+        )
+    end
+    return success
+end
+
+local function refresh_managed_ai_groups()
+    local previous_groups = ai_managed_groups
+    local carriers = carrier_group_names()
+    local groups_by_name = {}
+    local sides = {coalition.side.BLUE, coalition.side.RED}
+    local categories = {Group.Category.GROUND, Group.Category.SHIP}
+
+    for _, side in ipairs(sides) do
+        for _, category in ipairs(categories) do
+            local groups = coalition.getGroups(side, category)
+            if groups then
+                for _, group in ipairs(groups) do
+                    if (
+                        group_is_active(group)
+                        and group:getSize() > 0
+                        and not carriers[group:getName()]
+                        and not group_has_player(group)
+                    ) then
+                        groups_by_name[group:getName()] = group
+                    end
+                end
+            end
+        end
+    end
+
+    ai_managed_groups = {}
+    for _, group in pairs(groups_by_name) do
+        ai_managed_groups[#ai_managed_groups + 1] = group
+    end
+    table.sort(ai_managed_groups, function(left, right)
+        return left:getName() < right:getName()
+    end)
+
+    for _, group in ipairs(previous_groups) do
+        if not groups_by_name[group:getName()] then
+            set_group_ai(group, true)
+        end
+    end
+    for _, group in ipairs(ai_managed_groups) do
+        set_group_ai(group, false)
+    end
+
+    ai_enabled_groups = {}
+    if ai_group_cursor > #ai_managed_groups then
+        ai_group_cursor = 1
+    end
+end
+
+local function update_ai_cohort(_, schedule_time)
+    if mission_ended then
+        for _, group in ipairs(ai_managed_groups) do
+            set_group_ai(group, true)
+        end
+        return nil
+    end
+
+    if schedule_time - ai_last_refresh_time >= AI_GROUP_REFRESH_SECONDS then
+        refresh_managed_ai_groups()
+        ai_last_refresh_time = schedule_time
+    end
+
+    for _, group in ipairs(ai_enabled_groups) do
+        set_group_ai(group, false)
+    end
+    ai_enabled_groups = {}
+
+    local group_count = #ai_managed_groups
+    if group_count == 0 then
+        return schedule_time + AI_COHORT_WINDOW_SECONDS
+    end
+
+    local active_percent = configured_ground_ai_percent()
+    local active_count = math.max(1, math.ceil(group_count * active_percent / 100))
+    for offset = 0, active_count - 1 do
+        local index = ((ai_group_cursor + offset - 1) % group_count) + 1
+        local group = ai_managed_groups[index]
+        if set_group_ai(group, true) then
+            ai_enabled_groups[#ai_enabled_groups + 1] = group
+        end
+    end
+    ai_group_cursor = ((ai_group_cursor + active_count - 1) % group_count) + 1
+
+    return schedule_time + AI_COHORT_WINDOW_SECONDS
+end
+
+timer.scheduleFunction(update_ai_cohort, nil, timer.getTime() + 1)
+
+local function active_unit_positions()
+    local positions = {}
+    local sides = {coalition.side.BLUE, coalition.side.RED}
+    local categories = {
+        Group.Category.AIRPLANE,
+        Group.Category.HELICOPTER,
+        Group.Category.GROUND,
+        Group.Category.SHIP
+    }
+    for _, side in ipairs(sides) do
+        for _, category in ipairs(categories) do
+            local groups = coalition.getGroups(side, category)
+            if groups then
+                for _, group in ipairs(groups) do
+                    if (
+                        group_is_active(group)
+                        and not deferred_ground_group_names[group:getName()]
+                        and (
+                            activation_anchor_group_names[group:getName()]
+                            or group_has_player(group)
+                        )
+                    ) then
+                        for _, unit in ipairs(group:getUnits()) do
+                            if unit_is_active(unit) then
+                                positions[#positions + 1] = unit:getPoint()
+                            end
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return positions
+end
+
+local function force_limit(coalition_name, name, default)
+    if dcsLiberation and dcsLiberation.ForceLimits then
+        local coalition_limits = dcsLiberation.ForceLimits[coalition_name]
+        if coalition_limits then
+            return tonumber(coalition_limits[name]) or default
+        end
+    end
+    return default
+end
+
+local function deferred_group_has_capacity(data)
+    local counts = activated_force_counts[data.coalition]
+    if not counts then
+        return false
+    end
+    if data.kind == "sam" then
+        if counts.samSiteNames[data.siteName] then
+            return true
+        end
+        return counts.samSites < force_limit(data.coalition, "samSites", 3)
+    end
+    if data.kind == "ship" then
+        return (
+            counts.ships + tonumber(data.unitCount)
+            <= force_limit(data.coalition, "ships", 6)
+        )
+    end
+    if data.kind == "ground" then
+        return (
+            counts.groundVehicles + tonumber(data.unitCount)
+            <= force_limit(data.coalition, "groundVehicles", 15)
+        )
+    end
+    if data.kind == "infantry" then
+        return (
+            counts.infantry + tonumber(data.unitCount)
+            <= force_limit(data.coalition, "infantry", 5)
+        )
+    end
+    return false
+end
+
+local function record_deferred_group_activation(data)
+    local counts = activated_force_counts[data.coalition]
+    if data.kind == "sam" then
+        if not counts.samSiteNames[data.siteName] then
+            counts.samSiteNames[data.siteName] = true
+            counts.samSites = counts.samSites + 1
+        end
+    elseif data.kind == "ship" then
+        counts.ships = counts.ships + tonumber(data.unitCount)
+    elseif data.kind == "ground" then
+        counts.groundVehicles = counts.groundVehicles + tonumber(data.unitCount)
+    elseif data.kind == "infantry" then
+        counts.infantry = counts.infantry + tonumber(data.unitCount)
+    end
+end
+
+local function update_deferred_ground_groups(_, schedule_time)
+    if not dcsLiberation or not dcsLiberation.DeferredGroundGroups then
+        return nil
+    end
+
+    local positions = active_unit_positions()
+    local pending = {}
+    for _, data in pairs(dcsLiberation.DeferredGroundGroups) do
+        local position_x = tonumber(data.positionX)
+        local position_y = tonumber(data.positionY)
+        local activation_distance = tonumber(data.activationDistance)
+        local activation_distance_squared = activation_distance * activation_distance
+        local should_activate = false
+        for _, position in ipairs(positions) do
+            local offset_x = position.x - position_x
+            local offset_y = position.z - position_y
+            if offset_x * offset_x + offset_y * offset_y <= activation_distance_squared then
+                should_activate = true
+                break
+            end
+        end
+
+        if should_activate and deferred_group_has_capacity(data) then
+            local group = Group.getByName(data.dcsGroupName)
+            if group then
+                trigger.action.activateGroup(group)
+                record_deferred_group_activation(data)
+                set_group_ai(group, false)
+                ai_last_refresh_time = -math.huge
+                logger:info("Activated deferred ground group "..data.dcsGroupName)
+            end
+        elseif deferred_group_has_capacity(data) then
+            pending[#pending + 1] = data
+        end
+    end
+
+    dcsLiberation.DeferredGroundGroups = pending
+    if #pending > 0 then
+        return schedule_time + 10
+    end
+    return nil
+end
+
+timer.scheduleFunction(update_deferred_ground_groups, nil, timer.getTime() + 1)
+
 local function collect_aircraft_states()
     local aircraft_states = {}
     local sides = {coalition.side.BLUE, coalition.side.RED}
@@ -27,7 +357,7 @@ local function collect_aircraft_states()
                 for _, group in ipairs(groups) do
                     local units = group:getUnits()
                     for _, unit in ipairs(units) do
-                        if unit:isExist() then
+                        if unit_is_active(unit) then
                             local success, state = pcall(function()
                                 local point = unit:getPoint()
                                 local ammo_remaining = 0

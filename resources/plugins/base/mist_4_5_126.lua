@@ -63,6 +63,12 @@ do -- the main scope
 
 	local updateAliveUnitsCounter = 0
 	local updateTenthSecond = 0
+	local mainUpdateHz = 15
+	if dcsLiberation and dcsLiberation.Performance then
+		mainUpdateHz = tonumber(dcsLiberation.Performance.scriptUpdateHz) or mainUpdateHz
+	end
+	mainUpdateHz = math.max(5, math.min(100, mainUpdateHz))
+	local mainUpdateInterval = 1 / mainUpdateHz
 	
 	local mistGpId = 70000
 	local mistUnitId = 70000
@@ -1667,10 +1673,10 @@ do -- the main scope
 	end
 
 	--- The main function.
-	-- Run 100 times per second.
+	-- Runs at the configured rate, capped to 15 Hz by default for Liberation.
 	-- You shouldn't call this function.
 	function mist.main()
-		timer.scheduleFunction(mist.main, {}, timer.getTime() + 0.01)	--reschedule first in case of Lua error
+		timer.scheduleFunction(mist.main, {}, timer.getTime() + mainUpdateInterval)	--reschedule first in case of Lua error
 
 		updateTenthSecond = updateTenthSecond + 1
 		if updateTenthSecond == 20 then

@@ -10,13 +10,14 @@ from __future__ import annotations
 
 import logging
 import random
-from typing import Any, Dict, Iterator, List, Optional, TYPE_CHECKING, Type
+from typing import Any, cast, Dict, Iterator, List, Optional, TYPE_CHECKING, Type
 
 import dcs.vehicles
 from dcs import Mission, Point
 from dcs.action import DoScript, SceneryDestructionZone
 from dcs.condition import MapObjectIsDead
 from dcs.country import Country
+from dcs.point import PointAction
 from dcs.ships import (
     CVN_71,
     CVN_72,
@@ -48,26 +49,44 @@ from dcs.unitgroup import MovingGroup, ShipGroup, StaticGroup, VehicleGroup
 from dcs.unittype import ShipType, VehicleType
 from dcs.vehicles import vehicle_map
 
-from game.missiongenerator.missiondata import CarrierInfo, MissionData
+from game.data.units import UnitClass
+from game.dcs.groundunittype import GroundUnitType
+from game.missiongenerator.missiondata import (
+    CarrierInfo,
+    DeferredGroundGroup,
+    MissionData,
+)
 from game.radio.radios import RadioFrequency, RadioRegistry
 from game.radio.tacan import TacanBand, TacanChannel, TacanRegistry, TacanUsage
 from game.runways import RunwayData
-from game.theater import ControlPoint, TheaterGroundObject, TheaterUnit
+from game.theater import ControlPoint, OffMapSpawn, TheaterGroundObject, TheaterUnit
 from game.theater.theatergroundobject import (
     CarrierGroundObject,
     GenericCarrierGroundObject,
     LhaGroundObject,
     MissileSiteGroundObject,
+    SamGroundObject,
 )
 from game.theater.theatergroup import IadsGroundGroup, SceneryUnit
 from game.unitmap import UnitMap
-from game.utils import Heading, feet, knots, mps
+from game.utils import Heading, feet, knots, mps, kph
 
 if TYPE_CHECKING:
     from game import Game
 
 FARP_FRONTLINE_DISTANCE = 10000
 AA_CP_MIN_DISTANCE = 40000
+MOBILE_FORCE_CLASSES = {
+    UnitClass.TANK,
+    UnitClass.APC,
+    UnitClass.IFV,
+    UnitClass.ATGM,
+    UnitClass.RECON,
+}
+INFANTRY_FORCE_CLASSES = {
+    UnitClass.INFANTRY,
+    UnitClass.MANPAD,
+}
 
 
 class GroundObjectGenerator:
@@ -80,19 +99,25 @@ class GroundObjectGenerator:
         game: Game,
         mission: Mission,
         unit_map: UnitMap,
+        mission_data: MissionData,
     ) -> None:
         self.ground_object = ground_object
         self.country = country
         self.game = game
         self.m = mission
         self.unit_map = unit_map
+        self.mission_data = mission_data
 
     @property
     def culled(self) -> bool:
         return self.game.iads_considerate_culling(self.ground_object)
 
+    @property
+    def defer_activation(self) -> bool:
+        return self.game.settings.perf_dynamic_ground_activation
+
     def generate(self) -> None:
-        if self.culled:
+        if self.culled and not self.defer_activation:
             return
         for group in self.ground_object.groups:
             vehicle_units = []
@@ -100,6 +125,8 @@ class GroundObjectGenerator:
             # Split the different unit types to be compliant to dcs limitation
             for unit in group.units:
                 if unit.is_static:
+                    if self.culled:
+                        continue
                     if isinstance(unit, SceneryUnit):
                         # Special handling for scenery objects
                         self.add_trigger_zone_for_scenery(unit)
@@ -121,9 +148,180 @@ class GroundObjectGenerator:
                     # All alive Ships
                     ship_units.append(unit)
             if vehicle_units:
-                self.create_vehicle_group(group.group_name, vehicle_units)
+                if not self.defer_activation:
+                    self.create_vehicle_group(group.group_name, vehicle_units)
+                elif isinstance(self.ground_object, SamGroundObject):
+                    claimed = self.claim_deferred_units("sam", vehicle_units)
+                    if claimed:
+                        vehicle_group = self.create_vehicle_group(
+                            group.group_name, claimed
+                        )
+                        self.defer_group(vehicle_group, claimed, "sam")
+                else:
+                    infantry = [
+                        unit
+                        for unit in vehicle_units
+                        if self.unit_class(unit) in INFANTRY_FORCE_CLASSES
+                    ]
+                    mobile = [
+                        unit
+                        for unit in vehicle_units
+                        if self.unit_class(unit) in MOBILE_FORCE_CLASSES
+                    ]
+                    claimed_mobile = self.claim_deferred_units("ground", mobile)
+                    if claimed_mobile:
+                        vehicle_group = self.create_vehicle_group(
+                            group.group_name, claimed_mobile
+                        )
+                        self.configure_offensive_route(
+                            vehicle_group,
+                            claimed_mobile,
+                        )
+                        self.defer_group(
+                            vehicle_group,
+                            claimed_mobile,
+                            "ground",
+                        )
+                    claimed_infantry = self.claim_deferred_units(
+                        "infantry",
+                        infantry,
+                    )
+                    if claimed_infantry:
+                        infantry_group = self.create_vehicle_group(
+                            f"{group.group_name} Infantry",
+                            claimed_infantry,
+                        )
+                        self.configure_offensive_route(
+                            infantry_group,
+                            claimed_infantry,
+                        )
+                        self.defer_group(
+                            infantry_group,
+                            claimed_infantry,
+                            "infantry",
+                        )
             if ship_units:
-                self.create_ship_group(group.group_name, ship_units)
+                claimed = self.claim_deferred_units("ship", ship_units)
+                if claimed:
+                    ship_group = self.create_ship_group(group.group_name, claimed)
+                    self.defer_group(ship_group, claimed, "ship")
+
+    @staticmethod
+    def unit_class(unit: TheaterUnit) -> UnitClass:
+        return cast(GroundUnitType, unit.unit_type).unit_class
+
+    @property
+    def coalition_name(self) -> str:
+        return "blue" if self.ground_object.is_friendly(to_player=True) else "red"
+
+    def claim_deferred_units(
+        self,
+        kind: str,
+        units: list[TheaterUnit],
+    ) -> list[TheaterUnit]:
+        if not self.defer_activation:
+            return units
+
+        coalition_name = self.coalition_name
+        if kind == "sam":
+            selected = self.mission_data.selected_sam_sites[coalition_name]
+            site_name = str(self.ground_object.id)
+            if site_name not in selected:
+                if (
+                    len(selected)
+                    >= self.game.settings.perf_max_active_sam_sites_per_coalition
+                ):
+                    return []
+                selected.add(site_name)
+            return units
+
+        if kind == "ground":
+            active = self.mission_data.active_ground_units[coalition_name]
+            deferred = self.mission_data.deferred_ground_units[coalition_name]
+            limit = self.game.settings.perf_max_active_frontline_vehicles_per_coalition
+            counter = self.mission_data.deferred_ground_units
+        elif kind == "infantry":
+            active = self.mission_data.active_infantry_units[coalition_name]
+            deferred = self.mission_data.deferred_infantry_units[coalition_name]
+            limit = self.game.settings.perf_max_active_infantry_per_coalition
+            counter = self.mission_data.deferred_infantry_units
+        elif kind == "ship":
+            active = self.mission_data.active_ship_units[coalition_name]
+            deferred = self.mission_data.deferred_ship_units[coalition_name]
+            limit = self.game.settings.perf_max_active_ships_per_coalition
+            counter = self.mission_data.deferred_ship_units
+        else:
+            raise ValueError(f"Unknown deferred force kind: {kind}")
+
+        remaining = max(0, limit - active - deferred)
+        claimed = units[:remaining]
+        counter[coalition_name] += len(claimed)
+        return claimed
+
+    def configure_offensive_route(
+        self,
+        group: VehicleGroup,
+        units: list[TheaterUnit],
+    ) -> None:
+        if (
+            not self.game.settings.continuous_ground_force_offensive
+            or not self.game.settings.perf_moving_units
+        ):
+            return
+        if not any(
+            self.unit_class(unit) in MOBILE_FORCE_CLASSES | INFANTRY_FORCE_CLASSES
+            for unit in units
+        ):
+            return
+        enemies = [
+            control_point
+            for control_point in self.game.theater.controlpoints
+            if control_point.captured != self.ground_object.control_point.captured
+            and not isinstance(control_point, OffMapSpawn)
+        ]
+        if not enemies:
+            return
+        destination = min(
+            enemies,
+            key=lambda control_point: group.position.distance_to_point(
+                control_point.position
+            ),
+        )
+        group.add_waypoint(
+            destination.position,
+            speed=kph(25).kph,
+            move_formation=PointAction.OnRoad,
+        )
+
+    def defer_group(
+        self,
+        group: MovingGroup[Any],
+        units: list[TheaterUnit],
+        kind: str,
+    ) -> None:
+        if not self.defer_activation:
+            return
+
+        group.late_activation = True
+        activation_distance = max(
+            self.game.settings.perf_dynamic_ground_activation_distance * 1000,
+            self.ground_object.max_threat_range().meters + 18520,
+        )
+        position = group.units[0].position
+        self.mission_data.deferred_ground_groups.append(
+            DeferredGroundGroup(
+                group_name=group.name,
+                position_x=position.x,
+                position_y=position.y,
+                activation_distance=activation_distance,
+                coalition=(
+                    "blue" if self.ground_object.is_friendly(to_player=True) else "red"
+                ),
+                kind=kind,
+                site_name=str(self.ground_object.id),
+                unit_count=len(group.units),
+            )
+        )
 
     def create_vehicle_group(
         self, group_name: str, units: list[TheaterUnit]
@@ -393,7 +591,7 @@ class GenericCarrierGenerator(GroundObjectGenerator):
         unit_map: UnitMap,
         mission_data: MissionData,
     ) -> None:
-        super().__init__(ground_object, country, game, mission, unit_map)
+        super().__init__(ground_object, country, game, mission, unit_map, mission_data)
         self.ground_object = ground_object
         self.control_point = control_point
         self.radio_registry = radio_registry
@@ -402,9 +600,14 @@ class GenericCarrierGenerator(GroundObjectGenerator):
         self.runways = runways
         self.mission_data = mission_data
 
+    @property
+    def defer_activation(self) -> bool:
+        return False
+
     def generate(self) -> None:
         # This can also be refactored as the general generation was updated
         atc = self.radio_registry.alloc_uhf()
+        coalition_name = "blue" if self.control_point.captured else "red"
 
         for g_id, group in enumerate(self.ground_object.groups):
             if not group.units:
@@ -420,6 +623,21 @@ class GenericCarrierGenerator(GroundObjectGenerator):
             if not ship_units:
                 # No alive units in this group, continue with next group
                 continue
+
+            remaining_escorts = max(
+                0,
+                self.game.settings.perf_max_active_ships_per_coalition
+                - self.mission_data.active_ship_units[coalition_name],
+            )
+            if g_id == 0:
+                ship_units = ship_units[: 1 + remaining_escorts]
+                escort_count = max(0, len(ship_units) - 1)
+            else:
+                ship_units = ship_units[:remaining_escorts]
+                escort_count = len(ship_units)
+            if not ship_units:
+                continue
+            self.mission_data.active_ship_units[coalition_name] += escort_count
 
             ship_group = self.create_ship_group(group.group_name, ship_units, atc)
 
@@ -676,9 +894,60 @@ class TgoGenerator:
         self.runways: Dict[str, RunwayData] = {}
         self.helipads: dict[ControlPoint, StaticGroup] = {}
         self.mission_data = mission_data
+        player_departures = {
+            flight.departure.id
+            for coalition in self.game.coalitions
+            for package in coalition.ato.packages
+            if package.has_players
+            for flight in package.flights
+        }
+        self.priority_ground_objects = {
+            package.target.id
+            for coalition in self.game.coalitions
+            for package in coalition.ato.packages
+            if package.has_players and isinstance(package.target, TheaterGroundObject)
+        }
+        self.allowed_carrier_control_points: set[object] = set()
+        for captured in (True, False):
+            candidates = [
+                control_point
+                for control_point in self.game.theater.controlpoints
+                if control_point.captured == captured
+                and (control_point.is_carrier or control_point.is_lha)
+            ]
+            candidates.sort(
+                key=lambda control_point: (
+                    control_point.id not in player_departures,
+                    control_point.name,
+                )
+            )
+            player_carrier_count = sum(
+                control_point.id in player_departures for control_point in candidates
+            )
+            limit = max(
+                self.game.settings.perf_max_active_carriers_per_coalition,
+                player_carrier_count,
+            )
+            self.allowed_carrier_control_points.update(
+                control_point.id for control_point in candidates[:limit]
+            )
 
     def generate(self) -> None:
-        for cp in self.game.theater.controlpoints:
+        culling_zones = self.game.get_culling_zones()
+        control_points = sorted(
+            self.game.theater.controlpoints,
+            key=lambda control_point: (
+                min(
+                    (
+                        control_point.position.distance_to_point(zone)
+                        for zone in culling_zones
+                    ),
+                    default=0,
+                ),
+                control_point.name,
+            ),
+        )
+        for cp in control_points:
             country = self.m.country(self.game.coalition_for(cp.captured).country_name)
 
             # Generate helipads
@@ -689,9 +958,18 @@ class TgoGenerator:
             if helipad_gen.helipads is not None:
                 self.helipads[cp] = helipad_gen.helipads
 
-            for ground_object in cp.ground_objects:
+            ground_objects = sorted(
+                cp.ground_objects,
+                key=lambda ground_object: (
+                    ground_object.id not in self.priority_ground_objects,
+                    str(ground_object.id),
+                ),
+            )
+            for ground_object in ground_objects:
                 generator: GroundObjectGenerator
                 if isinstance(ground_object, CarrierGroundObject):
+                    if cp.id not in self.allowed_carrier_control_points:
+                        continue
                     generator = CarrierGenerator(
                         ground_object,
                         cp,
@@ -706,6 +984,8 @@ class TgoGenerator:
                         self.mission_data,
                     )
                 elif isinstance(ground_object, LhaGroundObject):
+                    if cp.id not in self.allowed_carrier_control_points:
+                        continue
                     generator = LhaGenerator(
                         ground_object,
                         cp,
@@ -721,11 +1001,21 @@ class TgoGenerator:
                     )
                 elif isinstance(ground_object, MissileSiteGroundObject):
                     generator = MissileSiteGenerator(
-                        ground_object, country, self.game, self.m, self.unit_map
+                        ground_object,
+                        country,
+                        self.game,
+                        self.m,
+                        self.unit_map,
+                        self.mission_data,
                     )
                 else:
                     generator = GroundObjectGenerator(
-                        ground_object, country, self.game, self.m, self.unit_map
+                        ground_object,
+                        country,
+                        self.game,
+                        self.m,
+                        self.unit_map,
+                        self.mission_data,
                     )
                 generator.generate()
         self.mission_data.runways = list(self.runways.values())

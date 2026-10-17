@@ -86,6 +86,18 @@ class LogisticsInfo:
 
 
 @dataclass
+class DeferredGroundGroup:
+    group_name: str
+    position_x: float
+    position_y: float
+    activation_distance: float
+    coalition: str
+    kind: str
+    site_name: str
+    unit_count: int
+
+
+@dataclass
 class MissionData:
     awacs: list[AwacsInfo] = field(default_factory=list)
     runways: list[RunwayData] = field(default_factory=list)
@@ -94,3 +106,26 @@ class MissionData:
     tankers: list[TankerInfo] = field(default_factory=list)
     jtacs: list[JtacInfo] = field(default_factory=list)
     logistics: list[LogisticsInfo] = field(default_factory=list)
+    deferred_ground_groups: list[DeferredGroundGroup] = field(default_factory=list)
+    activation_anchor_groups: list[str] = field(default_factory=list)
+    active_ship_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
+    )
+    active_ground_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
+    )
+    active_infantry_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
+    )
+    deferred_ground_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
+    )
+    deferred_infantry_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
+    )
+    deferred_ship_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
+    )
+    selected_sam_sites: dict[str, set[str]] = field(
+        default_factory=lambda: {"blue": set(), "red": set()}
+    )

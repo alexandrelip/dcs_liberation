@@ -182,6 +182,15 @@ if dcsLiberation and SkynetIADS then
             iads:addRadioMenu()
         end
 
+        if dcsLiberation.Performance then
+            local activePercent = tonumber(
+                dcsLiberation.Performance.groundAiActivePercent
+            )
+            if activePercent and activePercent > 0 then
+                iads:setUpdateInterval(5 * 100 / activePercent)
+            end
+        end
+
         --activate the IADS
         iads:activate()
     end

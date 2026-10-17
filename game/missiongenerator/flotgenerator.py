@@ -79,6 +79,7 @@ class FlotGenerator:
         unit_map: UnitMap,
         radio_registry: RadioRegistry,
         mission_data: MissionData,
+        infantry_budget: dict[bool, int],
     ) -> None:
         self.mission = mission
         self.conflict = conflict
@@ -90,6 +91,7 @@ class FlotGenerator:
         self.unit_map = unit_map
         self.radio_registry = radio_registry
         self.mission_data = mission_data
+        self.infantry_budget = infantry_budget
 
     def generate(self) -> None:
         position = FrontLineConflictDescription.frontline_position(
@@ -231,11 +233,21 @@ class FlotGenerator:
             return
 
         infantry_choices = list(possible_infantry_units)
+        infantry_count = min(
+            INFANTRY_GROUP_SIZE,
+            self.infantry_budget[is_player],
+        )
+        if infantry_count <= 0:
+            return
+
         units = random.choices(
             infantry_choices,
             weights=[u.spawn_weight for u in infantry_choices],
-            k=INFANTRY_GROUP_SIZE,
+            k=infantry_count,
         )
+        self.infantry_budget[is_player] -= len(units)
+        coalition_name = "blue" if is_player else "red"
+        self.mission_data.active_infantry_units[coalition_name] += len(units)
         infantry_group = self.mission.vehicle_group(
             side,
             namegen.next_infantry_name(side, units[0]),
@@ -739,7 +751,11 @@ class FlotGenerator:
                 g.set_skill(Skill(self.game.settings.enemy_vehicle_skill))
             positioned_groups.append((g, group))
 
-            if group.role in [CombatGroupRole.APC, CombatGroupRole.IFV]:
+            if group.role in [
+                CombatGroupRole.TANK,
+                CombatGroupRole.APC,
+                CombatGroupRole.IFV,
+            ]:
                 self.gen_infantry_group_for_group(
                     g,
                     is_player,

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import logging
+from dataclasses import dataclass
 from datetime import datetime
 from functools import cached_property
 from typing import Any, Dict, TYPE_CHECKING
@@ -36,6 +37,47 @@ from .flightgroupspawner import FlightGroupSpawner
 if TYPE_CHECKING:
     from game import Game
     from game.squadrons import Squadron
+
+
+@dataclass
+class AirUnitBudget:
+    combat_aircraft: int
+    helicopters: int
+    tankers: int
+    awacs: int
+
+    @classmethod
+    def from_settings(
+        cls,
+        settings: Settings,
+        preallocated_combat_aircraft: int = 0,
+    ) -> AirUnitBudget:
+        return cls(
+            combat_aircraft=max(
+                0,
+                settings.perf_max_active_combat_aircraft_per_coalition
+                - preallocated_combat_aircraft,
+            ),
+            helicopters=settings.perf_max_active_helicopters_per_coalition,
+            tankers=settings.perf_max_active_tankers_per_coalition,
+            awacs=settings.perf_max_active_awacs_per_coalition,
+        )
+
+    def claim(self, flight: Flight, required_for_player: bool) -> bool:
+        if flight.is_helo:
+            category = "helicopters"
+        elif flight.flight_type is FlightType.REFUELING:
+            category = "tankers"
+        elif flight.flight_type is FlightType.AEWC:
+            category = "awacs"
+        else:
+            category = "combat_aircraft"
+
+        available = getattr(self, category)
+        if not required_for_player and flight.count > available:
+            return False
+        setattr(self, category, max(0, available - flight.count))
+        return True
 
 
 class AircraftGenerator:
@@ -89,6 +131,7 @@ class AircraftGenerator:
         country: Country,
         ato: AirTaskingOrder,
         dynamic_runways: Dict[str, RunwayData],
+        player: bool,
     ) -> None:
         """Adds aircraft to the mission for every flight in the ATO.
 
@@ -101,18 +144,47 @@ class AircraftGenerator:
             ato: The ATO to spawn aircraft for.
             dynamic_runways: Runway data for carriers and FARPs.
         """
-        for package in ato.packages:
+        preallocated_combat_aircraft = sum(
+            1 for jtac in self.mission_data.jtacs if jtac.blue == player
+        )
+        budget = AirUnitBudget.from_settings(
+            self.settings,
+            preallocated_combat_aircraft,
+        )
+        packages = sorted(ato.packages, key=lambda package: not package.has_players)
+        for package in packages:
             if not package.flights:
                 continue
             package_briefing_data: list[FlightData] = []
             for flight in package.flights:
-                if flight.alive:
-                    logging.info(f"Generating flight: {flight.unit_type}")
-                    group, briefing_data = self.create_and_configure_flight(
-                        flight, country, dynamic_runways
+                if not flight.alive:
+                    continue
+                if (
+                    flight.departure.is_fleet
+                    and flight.departure.name not in dynamic_runways
+                ):
+                    logging.info(
+                        "Keeping %s flight from omitted fleet base %s abstract",
+                        flight.flight_type,
+                        flight.departure,
                     )
-                    package_briefing_data.append(briefing_data)
-                    self.unit_map.add_aircraft(group, flight)
+                    continue
+                if not budget.claim(flight, package.has_players):
+                    logging.info(
+                        "Keeping %s %s flight abstract to respect the active-aircraft "
+                        "budget",
+                        flight.count,
+                        flight.flight_type,
+                    )
+                    continue
+                logging.info(f"Generating flight: {flight.unit_type}")
+                group, briefing_data = self.create_and_configure_flight(
+                    flight, country, dynamic_runways
+                )
+                if package.has_players:
+                    self.mission_data.activation_anchor_groups.append(group.name)
+                package_briefing_data.append(briefing_data)
+                self.unit_map.add_aircraft(group, flight)
             self.briefing_data.append(package_briefing_data)
 
     def spawn_unused_aircraft(

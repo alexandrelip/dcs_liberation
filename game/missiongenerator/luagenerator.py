@@ -45,6 +45,55 @@ class LuaGenerator:
         install_path = lua_data.add_item("installPath")
         install_path.set_value(os.path.abspath("."))
 
+        performance = lua_data.add_item("Performance")
+        performance.add_key_value(
+            "scriptUpdateHz", str(self.game.settings.perf_script_update_hz)
+        )
+        performance.add_key_value(
+            "groundAiActivePercent",
+            str(self.game.settings.perf_ground_ai_active_percent),
+        )
+        force_limits = lua_data.add_item("ForceLimits")
+        for coalition_name in ("blue", "red"):
+            coalition_limits = force_limits.add_item(coalition_name)
+            coalition_limits.add_key_value(
+                "samSites",
+                str(self.game.settings.perf_max_active_sam_sites_per_coalition),
+            )
+            coalition_limits.add_key_value(
+                "ships",
+                str(
+                    max(
+                        0,
+                        self.game.settings.perf_max_active_ships_per_coalition
+                        - self.mission_data.active_ship_units[coalition_name],
+                    )
+                ),
+            )
+            coalition_limits.add_key_value(
+                "groundVehicles",
+                str(
+                    max(
+                        0,
+                        self.game.settings.perf_max_active_frontline_vehicles_per_coalition
+                        - self.mission_data.active_ground_units[coalition_name],
+                    )
+                ),
+            )
+            coalition_limits.add_key_value(
+                "infantry",
+                str(
+                    max(
+                        0,
+                        self.game.settings.perf_max_active_infantry_per_coalition
+                        - self.mission_data.active_infantry_units[coalition_name],
+                    )
+                ),
+            )
+
+        activation_anchors = lua_data.add_item("ActivationAnchorGroups")
+        activation_anchors.set_data_array(self.mission_data.activation_anchor_groups)
+
         lua_data.add_item("Airbases")
         carriers_object = lua_data.add_item("Carriers")
 
@@ -135,6 +184,20 @@ class LuaGenerator:
             crate_item.add_key_value("unit", unit)
             crate_item.add_key_value("weight", weight)
 
+        deferred_groups = lua_data.add_item("DeferredGroundGroups")
+        for deferred_group in self.mission_data.deferred_ground_groups:
+            deferred_item = deferred_groups.add_item()
+            deferred_item.add_key_value("dcsGroupName", deferred_group.group_name)
+            deferred_item.add_key_value("positionX", str(deferred_group.position_x))
+            deferred_item.add_key_value("positionY", str(deferred_group.position_y))
+            deferred_item.add_key_value(
+                "activationDistance", str(deferred_group.activation_distance)
+            )
+            deferred_item.add_key_value("coalition", deferred_group.coalition)
+            deferred_item.add_key_value("kind", deferred_group.kind)
+            deferred_item.add_key_value("siteName", deferred_group.site_name)
+            deferred_item.add_key_value("unitCount", str(deferred_group.unit_count))
+
         target_points = lua_data.add_item("TargetPoints")
         all_packages = itertools.chain(
             self.game.blue.ato.packages, self.game.red.ato.packages
@@ -196,9 +259,14 @@ class LuaGenerator:
         # These should always be created even if they are empty.
         iads_object.get_or_create_item("BLUE")
         iads_object.get_or_create_item("RED")
+        deferred_group_names = {
+            group.group_name for group in self.mission_data.deferred_ground_groups
+        }
         # Should probably do the same with all the roles... but the script is already
         # tolerant of those being empty.
         for node in self.game.theater.iads_network.skynet_nodes(self.game):
+            if node.dcs_name in deferred_group_names:
+                continue
             coalition = iads_object.get_or_create_item("BLUE" if node.player else "RED")
             iads_type = coalition.get_or_create_item(node.iads_role.value)
             iads_element = iads_type.add_item()

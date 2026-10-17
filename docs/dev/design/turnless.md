@@ -125,6 +125,8 @@ The time-based systems are:
 - a bounded campaign history exposed in the map UI and local API;
 - persistent transactional squadron weapon stores with compatible fallbacks;
 - nine player-configurable HTN theater-priority categories;
+- a default mission-performance bubble that culls distant units and omits
+  untasked inventory aircraft from DCS while retaining them in campaign state;
 - weather and front-line recovery every six hours;
 - configurable periodic ATO replanning during live strategic fast-forward; and
 - configurable aircraft turnaround after completed flights.
@@ -165,6 +167,37 @@ flights reuse their reservation. Store quantities currently count pylon CLSIDs,
 which may represent multi-round racks. Theater priorities reorder or disable
 the commander's global HTN action categories; geographic PAK weighting remains
 future work.
+
+Mission generation now enables the existing objective-distance culling bubble
+for new campaigns and does not render untasked squadron inventory on ramps by
+default. The inventory remains fully available to the ATO and can be rendered
+again with the mission-generator performance setting. Land-based AI flights are
+late-activated at their scheduled startup time by default rather than existing
+as uncontrolled ramp aircraft for the entire mission. Objective vehicle and
+ship groups are also late-activated when an active air, land, or sea unit enters
+their configurable bubble, expanded where necessary to cover a threat's weapon
+range. Activation is one-way for the current DCS mission. Fragged packages and
+units inside active objective bubbles still run in DCS.
+
+The performance profile also caps MIST's scheduler at 15 Hz and rotates eligible
+ground and non-carrier naval controllers through a 15% active cohort. Skynet
+contact evaluation uses the same budget. This is a concurrency and update-rate
+budget, not an operating-system CPU quota. Aircraft controllers are not paused
+in flight; aircraft CPU load is bounded through scheduled late activation.
+
+The default tactical layer is bounded per coalition to three SAM sites, six
+helicopters, fifteen front-line vehicles, five infantry, twenty combat
+aircraft, one tanker, one AEW&C aircraft, one carrier, and six other ships.
+Player packages are admitted first and act as deaggregation anchors. Excess AI
+flights and ground forces remain in the campaign model, where elapsed DCS time
+and capability-based autoresolve advance them without instantiating additional
+DCS AI. The limits are ceilings: unavailable or unplanned asset categories are
+not filled with invented units.
+
+Both sides use an aggressive ground posture by default. Generated mobile armor
+and infantry receive routes toward the nearest enemy control point, while the
+continuous campaign resolver moves the FLOT and can capture connected land
+bases between DCS missions.
 
 ### Front-line progress rework
 

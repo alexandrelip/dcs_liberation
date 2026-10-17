@@ -51,11 +51,15 @@ class GroundCombatOutcome:
 class ContinuousGroundWar:
     attrition_credit: dict[UUID, AttritionCredit] = field(default_factory=dict)
 
-    def resolve(self, front_line: FrontLine) -> GroundCombatOutcome:
+    def resolve(
+        self,
+        front_line: FrontLine,
+        forced_stance: CombatStance | None = None,
+    ) -> GroundCombatOutcome:
         blue = front_line.blue_cp
         red = front_line.red_cp
-        blue_stance = blue.stances[red.id]
-        red_stance = red.stances[blue.id]
+        blue_stance = forced_stance or blue.stances[red.id]
+        red_stance = forced_stance or red.stances[blue.id]
         blue_profile = STANCE_PROFILES[blue_stance]
         red_profile = STANCE_PROFILES[red_stance]
         blue_value = float(blue.base.total_armor_value)

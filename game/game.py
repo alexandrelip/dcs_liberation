@@ -28,6 +28,7 @@ from .coalition import Coalition
 from .commander.reactiveato import ReactiveAto
 from .db.gamedb import GameDb
 from .ground_forces.continuouscombat import ContinuousGroundWar
+from .ground_forces.combat_stance import CombatStance
 from .infos.information import Information
 from .lasercodes.lasercoderegistry import LaserCodeRegistry
 from .persistence import SaveManager
@@ -341,7 +342,12 @@ class Game:
         events: GameUpdateEvents,
     ) -> None:
         for front_line in list(self.theater.conflicts()):
-            outcome = self.continuous_ground_war.resolve(front_line)
+            forced_stance = (
+                CombatStance.AGGRESSIVE
+                if self.settings.continuous_ground_force_offensive
+                else None
+            )
+            outcome = self.continuous_ground_war.resolve(front_line, forced_stance)
             blue_losses = sum(outcome.blue_losses.values())
             red_losses = sum(outcome.red_losses.values())
             if blue_losses or red_losses or outcome.strength_delta:
@@ -721,6 +727,8 @@ class Game:
 
         packages = itertools.chain(self.blue.ato.packages, self.red.ato.packages)
         for package in packages:
+            if not package.has_players:
+                continue
             if package.primary_task is FlightType.BARCAP:
                 # BARCAPs will be planned at most locations on smaller theaters,
                 # rendering culling fairly useless. BARCAP packages don't really

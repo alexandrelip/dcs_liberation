@@ -13,7 +13,12 @@ from dcs.countries import country_dict
 from game.atcdata import AtcData
 from game.dcs.beacons import Beacons
 from game.dcs.helpers import unit_type_from_name
-from game.ground_forces.ai_ground_planner import GroundPlanner
+from game.ground_forces.ai_ground_planner import (
+    CombatGroup,
+    CombatGroupRole,
+    GroundPlanner,
+)
+from game.ground_forces.combat_stance import CombatStance
 from game.missiongenerator.aircraft.aircraftgenerator import (
     AircraftGenerator,
 )
@@ -43,7 +48,6 @@ if TYPE_CHECKING:
     from game import Game
     from game.ato import Flight
     from game.theater import ControlPoint
-    from game.ground_forces.ai_ground_planner import CombatGroup
 
 COMBINED_ARMS_SLOTS = 1
 
@@ -79,12 +83,19 @@ class MissionGenerator:
                 "MissionSimulation."
             )
         self.generation_started = True
+        from game.sim import GameUpdateEvents
+
+        self.game.compute_unculled_zones(GameUpdateEvents())
 
         self.setup_mission_coalitions()
         self.add_airfields_to_unit_map()
         self.initialize_registries()
 
         EnvironmentGenerator(self.mission, self.game.conditions, self.time).generate()
+
+        # Generate front-line units before deferred objectives so both share the same
+        # per-coalition tactical ground-force budget.
+        self.generate_ground_conflicts()
 
         tgo_generator = TgoGenerator(
             self.mission,
@@ -97,13 +108,15 @@ class MissionGenerator:
         tgo_generator.generate()
 
         ConvoyGenerator(self.mission, self.game, self.unit_map).generate()
-        CargoShipGenerator(self.mission, self.game, self.unit_map).generate()
+        CargoShipGenerator(
+            self.mission,
+            self.game,
+            self.unit_map,
+            self.mission_data,
+        ).generate()
 
         self.generate_destroyed_units()
 
-        # Generate ground conflicts first so the JTACs get the first laser code (1688)
-        # rather than the first player flight with a TGP.
-        self.generate_ground_conflicts()
         newly_reserved = self.reserve_weapon_loadouts()
         try:
             self.generate_air_units(tgo_generator)
@@ -241,26 +254,87 @@ class MissionGenerator:
                 planners[control_point] = planner
                 planner.plan_groundwar()
 
+        vehicle_budget = {
+            True: self.game.settings.perf_max_active_frontline_vehicles_per_coalition,
+            False: self.game.settings.perf_max_active_frontline_vehicles_per_coalition,
+        }
+        infantry_budget = {
+            True: self.game.settings.perf_max_active_infantry_per_coalition,
+            False: self.game.settings.perf_max_active_infantry_per_coalition,
+        }
         for front_line in self.game.theater.conflicts():
             player_cp = front_line.blue_cp
             enemy_cp = front_line.red_cp
             conflict = FrontLineConflictDescription.frontline_cas_conflict(
                 front_line, self.game.theater
             )
+            player_groups = self._limit_frontline_groups(
+                self._find_combat_groups_between(planners, player_cp, enemy_cp),
+                vehicle_budget,
+                player=True,
+            )
+            enemy_groups = self._limit_frontline_groups(
+                self._find_combat_groups_between(planners, enemy_cp, player_cp),
+                vehicle_budget,
+                player=False,
+            )
+            self.mission_data.active_ground_units["blue"] += sum(
+                group.size for group in player_groups
+            )
+            self.mission_data.active_ground_units["red"] += sum(
+                group.size for group in enemy_groups
+            )
+            if self.game.settings.continuous_ground_force_offensive:
+                player_stance = CombatStance.AGGRESSIVE
+                enemy_stance = CombatStance.AGGRESSIVE
+            else:
+                player_stance = player_cp.stances[enemy_cp.id]
+                enemy_stance = enemy_cp.stances[player_cp.id]
             # Generate frontline ops
             ground_conflict_gen = FlotGenerator(
                 self.mission,
                 conflict,
                 self.game,
-                self._find_combat_groups_between(planners, player_cp, enemy_cp),
-                self._find_combat_groups_between(planners, enemy_cp, player_cp),
-                player_cp.stances[enemy_cp.id],
-                enemy_cp.stances[player_cp.id],
+                player_groups,
+                enemy_groups,
+                player_stance,
+                enemy_stance,
                 self.unit_map,
                 self.radio_registry,
                 self.mission_data,
+                infantry_budget,
             )
             ground_conflict_gen.generate()
+
+    @staticmethod
+    def _limit_frontline_groups(
+        groups: list[CombatGroup],
+        remaining_budget: dict[bool, int],
+        player: bool,
+    ) -> list[CombatGroup]:
+        role_priority = {
+            CombatGroupRole.TANK: 0,
+            CombatGroupRole.IFV: 1,
+            CombatGroupRole.APC: 2,
+            CombatGroupRole.ATGM: 3,
+            CombatGroupRole.RECON: 4,
+            CombatGroupRole.SHORAD: 5,
+            CombatGroupRole.ARTILLERY: 6,
+            CombatGroupRole.LOGI: 7,
+            CombatGroupRole.INFANTRY: 8,
+        }
+        selected = []
+        ordered = sorted(groups, key=lambda group: role_priority[group.role])
+        for group in ordered:
+            available = remaining_budget[player]
+            if available <= 0:
+                break
+            count = min(group.size, available)
+            selected_group = CombatGroup(group.role, group.unit_type, count)
+            selected_group.start_position = group.start_position
+            selected.append(selected_group)
+            remaining_budget[player] -= count
+        return selected
 
     def generate_air_units(self, tgo_generator: TgoGenerator) -> None:
         """Generate the air units for the Operation"""
@@ -284,16 +358,19 @@ class MissionGenerator:
             self.mission.country(self.game.blue.country_name),
             self.game.blue.ato,
             tgo_generator.runways,
+            player=True,
         )
         aircraft_generator.generate_flights(
             self.mission.country(self.game.red.country_name),
             self.game.red.ato,
             tgo_generator.runways,
+            player=False,
         )
-        aircraft_generator.spawn_unused_aircraft(
-            self.mission.country(self.game.blue.country_name),
-            self.mission.country(self.game.red.country_name),
-        )
+        if self.game.settings.perf_spawn_unused_aircraft:
+            aircraft_generator.spawn_unused_aircraft(
+                self.mission.country(self.game.blue.country_name),
+                self.mission.country(self.game.red.country_name),
+            )
 
         for package in aircraft_generator.briefing_data:
             for flight in package:
