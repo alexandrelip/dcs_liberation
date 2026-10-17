@@ -41,6 +41,7 @@ def test_performance_defaults_reduce_active_mission_entities() -> None:
     assert settings.perf_dynamic_ground_activation_distance == 35
     assert settings.perf_script_update_hz == 15
     assert settings.perf_ground_ai_active_percent == 15
+    assert settings.perf_max_active_units_per_coalition == 70
     assert settings.perf_max_active_sam_sites_per_coalition == 3
     assert settings.perf_max_active_helicopters_per_coalition == 6
     assert settings.perf_max_active_frontline_vehicles_per_coalition == 15
@@ -189,6 +190,18 @@ def test_preallocated_jtac_uses_combat_aircraft_budget() -> None:
     )
 
     assert budget.combat_aircraft == 19
+
+
+def test_global_tactical_unit_budget_caps_aircraft_selection() -> None:
+    settings = Settings()
+    settings.perf_max_active_units_per_coalition = 10
+    budget = AirUnitBudget.from_settings(settings)
+    combat = Mock(is_helo=False, flight_type=FlightType.STRIKE, count=4)
+
+    assert budget.claim(combat, False) is True
+    assert budget.claim(combat, False) is True
+    assert budget.claim(combat, False) is False
+    assert budget.total_units == 2
 
 
 def test_frontline_vehicle_budget_clips_last_group_to_fifteen_units() -> None:

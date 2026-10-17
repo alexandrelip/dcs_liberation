@@ -188,11 +188,15 @@ in flight; aircraft CPU load is bounded through scheduled late activation.
 The default tactical layer is bounded per coalition to three SAM sites, six
 helicopters, fifteen front-line vehicles, five infantry, twenty combat
 aircraft, one tanker, one AEW&C aircraft, one carrier, and six other ships.
+The combined selection is additionally capped at 70 tactical units per
+coalition.
 Player packages are admitted first and act as deaggregation anchors. Excess AI
 flights and ground forces remain in the campaign model, where elapsed DCS time
 and capability-based autoresolve advance them without instantiating additional
-DCS AI. The limits are ceilings: unavailable or unplanned asset categories are
-not filled with invented units.
+DCS AI. Player-package target positions also anchor the tactical bubble so the
+bounded target force is available before the package arrives. The limits are
+ceilings: unavailable or unplanned asset categories are not filled with
+invented units.
 
 Both sides use an aggressive ground posture by default. Generated mobile armor
 and infantry receive routes toward the nearest enemy control point, while the

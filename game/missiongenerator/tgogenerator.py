@@ -223,6 +223,14 @@ class GroundObjectGenerator:
             return units
 
         coalition_name = self.coalition_name
+        global_remaining = max(
+            0,
+            self.game.settings.perf_max_active_units_per_coalition
+            - self.mission_data.selected_tactical_units[coalition_name],
+        )
+        if global_remaining == 0:
+            return []
+
         if kind == "sam":
             selected = self.mission_data.selected_sam_sites[coalition_name]
             site_name = str(self.ground_object.id)
@@ -232,7 +240,10 @@ class GroundObjectGenerator:
                     >= self.game.settings.perf_max_active_sam_sites_per_coalition
                 ):
                     return []
-                selected.add(site_name)
+            if len(units) > global_remaining:
+                return []
+            selected.add(site_name)
+            self.mission_data.selected_tactical_units[coalition_name] += len(units)
             return units
 
         if kind == "ground":
@@ -254,8 +265,9 @@ class GroundObjectGenerator:
             raise ValueError(f"Unknown deferred force kind: {kind}")
 
         remaining = max(0, limit - active - deferred)
-        claimed = units[:remaining]
+        claimed = units[: min(remaining, global_remaining)]
         counter[coalition_name] += len(claimed)
+        self.mission_data.selected_tactical_units[coalition_name] += len(claimed)
         return claimed
 
     def configure_offensive_route(
@@ -631,13 +643,19 @@ class GenericCarrierGenerator(GroundObjectGenerator):
             )
             if g_id == 0:
                 ship_units = ship_units[: 1 + remaining_escorts]
-                escort_count = max(0, len(ship_units) - 1)
             else:
                 ship_units = ship_units[:remaining_escorts]
-                escort_count = len(ship_units)
+            global_remaining = max(
+                0,
+                self.game.settings.perf_max_active_units_per_coalition
+                - self.mission_data.selected_tactical_units[coalition_name],
+            )
+            ship_units = ship_units[:global_remaining]
             if not ship_units:
                 continue
+            escort_count = max(0, len(ship_units) - 1) if g_id == 0 else len(ship_units)
             self.mission_data.active_ship_units[coalition_name] += escort_count
+            self.mission_data.selected_tactical_units[coalition_name] += len(ship_units)
 
             ship_group = self.create_ship_group(group.group_name, ship_units, atc)
 

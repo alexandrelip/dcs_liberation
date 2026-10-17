@@ -38,6 +38,8 @@ class CargoShipGenerator:
                 if (
                     self.mission_data.active_ship_units[coalition_name]
                     >= self.game.settings.perf_max_active_ships_per_coalition
+                    or self.mission_data.selected_tactical_units[coalition_name]
+                    >= self.game.settings.perf_max_active_units_per_coalition
                 ):
                     logging.info(
                         "Keeping cargo ship %s abstract to respect the active-ship "
@@ -47,6 +49,7 @@ class CargoShipGenerator:
                     continue
                 self.generate_cargo_ship(ship)
                 self.mission_data.active_ship_units[coalition_name] += 1
+                self.mission_data.selected_tactical_units[coalition_name] += 1
 
     def generate_cargo_ship(self, ship: CargoShip) -> ShipGroup:
         coalition = self.game.coalition_for(ship.player_owned)

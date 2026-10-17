@@ -227,6 +227,15 @@ timer.scheduleFunction(update_ai_cohort, nil, timer.getTime() + 1)
 
 local function active_unit_positions()
     local positions = {}
+    if dcsLiberation and dcsLiberation.ActivationAnchorPoints then
+        for _, position in pairs(dcsLiberation.ActivationAnchorPoints) do
+            positions[#positions + 1] = {
+                x = tonumber(position.positionX),
+                y = 0,
+                z = tonumber(position.positionY)
+            }
+        end
+    end
     local sides = {coalition.side.BLUE, coalition.side.RED}
     local categories = {
         Group.Category.AIRPLANE,

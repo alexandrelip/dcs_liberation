@@ -735,6 +735,18 @@ class Settings:
             "groups are excluded for flight and control safety."
         ),
     )
+    perf_max_active_units_per_coalition: int = bounded_int_option(
+        "Maximum tactical units per coalition",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=70,
+        min=10,
+        max=500,
+        detail=(
+            "Global ceiling across selected aircraft, helicopters, ground units, "
+            "SAM components, carriers, and ships. Per-category limits still apply."
+        ),
+    )
     perf_max_active_sam_sites_per_coalition: int = bounded_int_option(
         "Maximum active SAM sites per coalition",
         page=MISSION_GENERATOR_PAGE,

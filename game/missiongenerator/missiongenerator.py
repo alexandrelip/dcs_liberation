@@ -255,8 +255,14 @@ class MissionGenerator:
                 planner.plan_groundwar()
 
         vehicle_budget = {
-            True: self.game.settings.perf_max_active_frontline_vehicles_per_coalition,
-            False: self.game.settings.perf_max_active_frontline_vehicles_per_coalition,
+            True: min(
+                self.game.settings.perf_max_active_frontline_vehicles_per_coalition,
+                self.game.settings.perf_max_active_units_per_coalition,
+            ),
+            False: min(
+                self.game.settings.perf_max_active_frontline_vehicles_per_coalition,
+                self.game.settings.perf_max_active_units_per_coalition,
+            ),
         }
         infantry_budget = {
             True: self.game.settings.perf_max_active_infantry_per_coalition,
@@ -282,6 +288,12 @@ class MissionGenerator:
                 group.size for group in player_groups
             )
             self.mission_data.active_ground_units["red"] += sum(
+                group.size for group in enemy_groups
+            )
+            self.mission_data.selected_tactical_units["blue"] += sum(
+                group.size for group in player_groups
+            )
+            self.mission_data.selected_tactical_units["red"] += sum(
                 group.size for group in enemy_groups
             )
             if self.game.settings.continuous_ground_force_offensive:

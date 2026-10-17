@@ -93,6 +93,11 @@ class LuaGenerator:
 
         activation_anchors = lua_data.add_item("ActivationAnchorGroups")
         activation_anchors.set_data_array(self.mission_data.activation_anchor_groups)
+        activation_points = lua_data.add_item("ActivationAnchorPoints")
+        for position_x, position_y in self.mission_data.activation_anchor_points:
+            anchor_item = activation_points.add_item()
+            anchor_item.add_key_value("positionX", str(position_x))
+            anchor_item.add_key_value("positionY", str(position_y))
 
         lua_data.add_item("Airbases")
         carriers_object = lua_data.add_item("Carriers")

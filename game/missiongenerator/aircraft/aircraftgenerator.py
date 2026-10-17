@@ -45,12 +45,14 @@ class AirUnitBudget:
     helicopters: int
     tankers: int
     awacs: int
+    total_units: int
 
     @classmethod
     def from_settings(
         cls,
         settings: Settings,
         preallocated_combat_aircraft: int = 0,
+        total_units_available: int | None = None,
     ) -> AirUnitBudget:
         return cls(
             combat_aircraft=max(
@@ -61,6 +63,11 @@ class AirUnitBudget:
             helicopters=settings.perf_max_active_helicopters_per_coalition,
             tankers=settings.perf_max_active_tankers_per_coalition,
             awacs=settings.perf_max_active_awacs_per_coalition,
+            total_units=(
+                settings.perf_max_active_units_per_coalition
+                if total_units_available is None
+                else total_units_available
+            ),
         )
 
     def claim(self, flight: Flight, required_for_player: bool) -> bool:
@@ -74,9 +81,12 @@ class AirUnitBudget:
             category = "combat_aircraft"
 
         available = getattr(self, category)
-        if not required_for_player and flight.count > available:
+        if not required_for_player and (
+            flight.count > available or flight.count > self.total_units
+        ):
             return False
         setattr(self, category, max(0, available - flight.count))
+        self.total_units = max(0, self.total_units - flight.count)
         return True
 
 
@@ -147,14 +157,25 @@ class AircraftGenerator:
         preallocated_combat_aircraft = sum(
             1 for jtac in self.mission_data.jtacs if jtac.blue == player
         )
+        coalition_name = "blue" if player else "red"
+        total_units_available = max(
+            0,
+            self.settings.perf_max_active_units_per_coalition
+            - self.mission_data.selected_tactical_units[coalition_name],
+        )
         budget = AirUnitBudget.from_settings(
             self.settings,
             preallocated_combat_aircraft,
+            total_units_available,
         )
         packages = sorted(ato.packages, key=lambda package: not package.has_players)
         for package in packages:
             if not package.flights:
                 continue
+            if package.has_players:
+                anchor = (package.target.position.x, package.target.position.y)
+                if anchor not in self.mission_data.activation_anchor_points:
+                    self.mission_data.activation_anchor_points.append(anchor)
             package_briefing_data: list[FlightData] = []
             for flight in package.flights:
                 if not flight.alive:
@@ -185,6 +206,9 @@ class AircraftGenerator:
                     self.mission_data.activation_anchor_groups.append(group.name)
                 package_briefing_data.append(briefing_data)
                 self.unit_map.add_aircraft(group, flight)
+                self.mission_data.selected_tactical_units[
+                    coalition_name
+                ] += flight.count
             self.briefing_data.append(package_briefing_data)
 
     def spawn_unused_aircraft(

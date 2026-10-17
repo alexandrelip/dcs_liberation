@@ -108,6 +108,7 @@ class MissionData:
     logistics: list[LogisticsInfo] = field(default_factory=list)
     deferred_ground_groups: list[DeferredGroundGroup] = field(default_factory=list)
     activation_anchor_groups: list[str] = field(default_factory=list)
+    activation_anchor_points: list[tuple[float, float]] = field(default_factory=list)
     active_ship_units: dict[str, int] = field(
         default_factory=lambda: {"blue": 0, "red": 0}
     )
@@ -128,4 +129,7 @@ class MissionData:
     )
     selected_sam_sites: dict[str, set[str]] = field(
         default_factory=lambda: {"blue": set(), "red": set()}
+    )
+    selected_tactical_units: dict[str, int] = field(
+        default_factory=lambda: {"blue": 0, "red": 0}
     )

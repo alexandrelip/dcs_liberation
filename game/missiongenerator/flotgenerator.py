@@ -134,7 +134,11 @@ class FlotGenerator:
         )
 
         # Add JTAC
-        if self.game.blue.faction.has_jtac:
+        if (
+            self.game.blue.faction.has_jtac
+            and self.mission_data.selected_tactical_units["blue"]
+            < self.game.settings.perf_max_active_units_per_coalition
+        ):
             freq = self.radio_registry.alloc_uhf()
             # If the option fc3LaserCode is enabled, force all JTAC
             # laser codes to 1113 to allow lasing for Su-25 Frogfoots and A-10A Warthogs.
@@ -185,6 +189,7 @@ class FlotGenerator:
                     freq=freq,
                 )
             )
+            self.mission_data.selected_tactical_units["blue"] += len(jtac.units)
 
     def gen_infantry_group_for_group(
         self,
@@ -233,9 +238,16 @@ class FlotGenerator:
             return
 
         infantry_choices = list(possible_infantry_units)
+        coalition_name = "blue" if is_player else "red"
+        global_remaining = max(
+            0,
+            self.game.settings.perf_max_active_units_per_coalition
+            - self.mission_data.selected_tactical_units[coalition_name],
+        )
         infantry_count = min(
             INFANTRY_GROUP_SIZE,
             self.infantry_budget[is_player],
+            global_remaining,
         )
         if infantry_count <= 0:
             return
@@ -246,8 +258,8 @@ class FlotGenerator:
             k=infantry_count,
         )
         self.infantry_budget[is_player] -= len(units)
-        coalition_name = "blue" if is_player else "red"
         self.mission_data.active_infantry_units[coalition_name] += len(units)
+        self.mission_data.selected_tactical_units[coalition_name] += len(units)
         infantry_group = self.mission.vehicle_group(
             side,
             namegen.next_infantry_name(side, units[0]),

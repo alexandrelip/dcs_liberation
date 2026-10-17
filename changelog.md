@@ -12,8 +12,10 @@ Saves from 15.5.0 are compatible with 15.6.0.
 * **[Performance]** Added a 15% rotating controller budget for ground and non-carrier naval AI so no more than one cohort thinks simultaneously.
 * **[Performance]** Scaled Skynet IADS contact evaluation to the same 15% AI budget.
 * **[Performance]** Added per-coalition tactical-layer limits of three SAM sites, six helicopters, fifteen front-line vehicles, five infantry, twenty combat aircraft, one tanker, one AEW&C aircraft, one carrier, and six non-carrier ships.
+* **[Performance]** Added a global ceiling of 70 selected tactical units per coalition; category ceilings continue to apply within that total.
 * **[Campaign]** Flights and units beyond the tactical-layer limits remain in the persistent campaign and are resolved by the strategic simulation instead of being deleted.
 * **[Campaign]** Player packages are always generated ahead of AI packages and define the local deaggregation bubble for nearby objectives.
+* **[Campaign]** Player-package target areas are preloaded as tactical anchors so bounded SAM, armor, infantry, and naval targets exist before the player reaches weapon range.
 * **[Campaign]** Both coalitions now default to an aggressive continuous-ground posture so surviving forces advance toward connected enemy bases.
 
 ## Fixes
