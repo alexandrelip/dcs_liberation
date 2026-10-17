@@ -53,6 +53,14 @@ class LuaGenerator:
             "groundAiActivePercent",
             str(self.game.settings.perf_ground_ai_active_percent),
         )
+        performance.add_key_value(
+            "mig29RetreatToSam",
+            "true" if self.game.settings.perf_mig29_retreat_to_sam else "false",
+        )
+        performance.add_key_value(
+            "mig29OutnumberedRadius",
+            str(self.game.settings.perf_mig29_outnumbered_radius * 1000),
+        )
         force_limits = lua_data.add_item("ForceLimits")
         for coalition_name in ("blue", "red"):
             coalition_limits = force_limits.add_item(coalition_name)
@@ -190,6 +198,7 @@ class LuaGenerator:
             crate_item.add_key_value("weight", weight)
 
         deferred_groups = lua_data.add_item("DeferredGroundGroups")
+        defensive_sam_points = lua_data.add_item("DefensiveSamPoints")
         for deferred_group in self.mission_data.deferred_ground_groups:
             deferred_item = deferred_groups.add_item()
             deferred_item.add_key_value("dcsGroupName", deferred_group.group_name)
@@ -202,6 +211,11 @@ class LuaGenerator:
             deferred_item.add_key_value("kind", deferred_group.kind)
             deferred_item.add_key_value("siteName", deferred_group.site_name)
             deferred_item.add_key_value("unitCount", str(deferred_group.unit_count))
+            if deferred_group.kind == "sam" and deferred_group.coalition == "red":
+                sam_item = defensive_sam_points.add_item()
+                sam_item.add_key_value("dcsGroupName", deferred_group.group_name)
+                sam_item.add_key_value("positionX", str(deferred_group.position_x))
+                sam_item.add_key_value("positionY", str(deferred_group.position_y))
 
         target_points = lua_data.add_item("TargetPoints")
         all_packages = itertools.chain(

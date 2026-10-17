@@ -19,6 +19,7 @@ from game.ato.package import Package
 from game.ato.starttype import StartType
 from game.factions.faction import Faction
 from game.missiongenerator.missiondata import MissionData
+from game.playableroster import RUSSIAN_MIG29_FLIGHT_NAME
 from game.radio.radios import RadioRegistry
 from game.radio.tacan import TacanRegistry
 from game.runways import RunwayData
@@ -168,7 +169,16 @@ class AircraftGenerator:
             preallocated_combat_aircraft,
             total_units_available,
         )
-        packages = sorted(ato.packages, key=lambda package: not package.has_players)
+        packages = sorted(
+            ato.packages,
+            key=lambda package: (
+                not package.has_players,
+                not any(
+                    flight.custom_name == RUSSIAN_MIG29_FLIGHT_NAME
+                    for flight in package.flights
+                ),
+            ),
+        )
         for package in packages:
             if not package.flights:
                 continue

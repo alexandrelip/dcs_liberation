@@ -1,0 +1,23 @@
+description: Brazilian modernized F-5E Tiger II.
+introduced: 2005
+manufacturer: Embraer/Northrop
+origin: Brazil
+price: 14
+role: Light Fighter
+max_range: 120
+default_livery: FAB GAV 4829
+gunfighter: true
+variants:
+  F-5EM Tiger II: {}
+tasks:
+  BAI: 270
+  BARCAP: 215
+  CAS: 270
+  Escort: 215
+  Fighter sweep: 215
+  Intercept: 215
+  OCA/Aircraft: 270
+  OCA/Runway: 200
+  Strike: 210
+  TARCAP: 215
+hit_points: 16

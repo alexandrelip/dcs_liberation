@@ -372,6 +372,162 @@ end
 
 timer.scheduleFunction(update_deferred_ground_groups, nil, timer.getTime() + 1)
 
+local mig29_retreating_groups = {}
+local mig29_types = {
+    ["MiG-29A"] = true,
+    ["MiG-29G"] = true,
+    ["MiG-29S"] = true
+}
+
+local function active_aircraft_near(side, center, radius_squared)
+    local count = 0
+    local groups = coalition.getGroups(side, Group.Category.AIRPLANE)
+    if not groups then
+        return count
+    end
+    for _, group in ipairs(groups) do
+        if group_is_active(group) then
+            for _, unit in ipairs(group:getUnits()) do
+                if unit_is_active(unit) and unit:inAir() then
+                    local point = unit:getPoint()
+                    local offset_x = point.x - center.x
+                    local offset_y = point.z - center.z
+                    if (
+                        offset_x * offset_x + offset_y * offset_y
+                        <= radius_squared
+                    ) then
+                        count = count + 1
+                    end
+                end
+            end
+        end
+    end
+    return count
+end
+
+local function nearest_active_red_sam(point)
+    local best = nil
+    local best_distance = math.huge
+    if not dcsLiberation or not dcsLiberation.DefensiveSamPoints then
+        return nil
+    end
+    for _, data in pairs(dcsLiberation.DefensiveSamPoints) do
+        local group = Group.getByName(data.dcsGroupName)
+        if group_is_active(group) then
+            local offset_x = tonumber(data.positionX) - point.x
+            local offset_y = tonumber(data.positionY) - point.z
+            local distance = offset_x * offset_x + offset_y * offset_y
+            if distance < best_distance then
+                best_distance = distance
+                best = data
+            end
+        end
+    end
+    return best
+end
+
+local function retreat_mig29_to_sam(group, current, sam)
+    local altitude = math.max(current.y, 3500)
+    local speed = 250
+    local sam_point = {
+        x = tonumber(sam.positionX),
+        y = tonumber(sam.positionY)
+    }
+    local route = {
+        mist.fixedWing.buildWP(current, "turningpoint", speed, altitude, "baro"),
+        mist.fixedWing.buildWP(
+            sam_point,
+            "turningpoint",
+            speed,
+            altitude,
+            "baro"
+        )
+    }
+    route[2].task = {
+        id = "ComboTask",
+        params = {
+            tasks = {
+                {
+                    enabled = true,
+                    auto = false,
+                    id = "Orbit",
+                    number = 1,
+                    params = {
+                        pattern = "Circle",
+                        point = sam_point,
+                        speed = speed,
+                        altitude = altitude
+                    }
+                }
+            }
+        }
+    }
+    if mist.goRoute(group, route) then
+        mig29_retreating_groups[group:getName()] = true
+        logger:info(
+            "MiG-29 group "..group:getName()..
+            " retreating to SAM cover "..sam.dcsGroupName
+        )
+    end
+end
+
+local function update_mig29_retreats(_, schedule_time)
+    if (
+        not dcsLiberation
+        or not dcsLiberation.Performance
+        or dcsLiberation.Performance.mig29RetreatToSam ~= "true"
+    ) then
+        return nil
+    end
+
+    local radius = tonumber(
+        dcsLiberation.Performance.mig29OutnumberedRadius
+    ) or 120000
+    local radius_squared = radius * radius
+    local groups = coalition.getGroups(
+        coalition.side.RED,
+        Group.Category.AIRPLANE
+    )
+    if groups then
+        for _, group in ipairs(groups) do
+            if (
+                group_is_active(group)
+                and not mig29_retreating_groups[group:getName()]
+            ) then
+                local units = group:getUnits()
+                local lead = units and units[1]
+                if (
+                    lead
+                    and unit_is_active(lead)
+                    and lead:inAir()
+                    and mig29_types[lead:getTypeName()]
+                ) then
+                    local point = lead:getPoint()
+                    local friendly = active_aircraft_near(
+                        coalition.side.RED,
+                        point,
+                        radius_squared
+                    )
+                    local hostile = active_aircraft_near(
+                        coalition.side.BLUE,
+                        point,
+                        radius_squared
+                    )
+                    if hostile > friendly then
+                        local sam = nearest_active_red_sam(point)
+                        if sam then
+                            retreat_mig29_to_sam(group, point, sam)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return schedule_time + 10
+end
+
+timer.scheduleFunction(update_mig29_retreats, nil, timer.getTime() + 10)
+
 local function collect_aircraft_states()
     local aircraft_states = {}
     local sides = {coalition.side.BLUE, coalition.side.RED}

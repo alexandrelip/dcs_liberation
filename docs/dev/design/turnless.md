@@ -203,6 +203,14 @@ and infantry receive routes toward the nearest enemy control point, while the
 continuous campaign resolver moves the FLOT and can capture connected land
 bases between DCS missions.
 
+The blue coalition can maintain an expanded persistent Client roster containing
+F-16C, F-5EM, AMX A-1M, A-29B, carrier-based F/A-18C and A-4E-C, F-15C,
+JF-17, and AH-64D flights. Brazilian and community-mod slots are generated only
+when their matching Saved Games mod directories are installed. Russia maintains
+a defensive MiG-29S pair; when active MiG-29s are locally outnumbered inside the
+configured radius, the DCS Lua layer sends them to orbit over the nearest active
+Russian SAM.
+
 ### Front-line progress rework
 
 Add auto-resolve for the front line, adjust progress estimates based on stances

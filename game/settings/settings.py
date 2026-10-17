@@ -204,6 +204,16 @@ class Settings:
             " this, lest you face an Ace!"
         ),
     )
+    enable_expanded_blue_player_roster: bool = boolean_option(
+        "Generate expanded blue player roster",
+        CAMPAIGN_MANAGEMENT_PAGE,
+        PILOTS_AND_SQUADRONS_SECTION,
+        default=True,
+        detail=(
+            "Creates persistent Client flights for the configured mixed blue roster, "
+            "including Brazilian aircraft mods when they are installed."
+        ),
+    )
     #: Feature flag for squadron limits.
     enable_squadron_pilot_limits: bool = boolean_option(
         "Enable per-squadron pilot limits (WIP)",
@@ -734,6 +744,35 @@ class Settings:
             "can think simultaneously. Aircraft, carriers, and player-controlled "
             "groups are excluded for flight and control safety."
         ),
+    )
+    perf_mig29_retreat_to_sam: bool = boolean_option(
+        "MiG-29 retreats to SAM cover when outnumbered",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=True,
+        detail=(
+            "Russian MiG-29 groups compare nearby active aircraft and retreat to the "
+            "nearest active friendly SAM when hostile aircraft have numerical "
+            "superiority."
+        ),
+    )
+    perf_ensure_russian_mig29_defensive_flight: bool = boolean_option(
+        "Ensure Russian defensive MiG-29 flight",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=True,
+        detail=(
+            "Adds a persistent two-aircraft MiG-29S defensive flight for Russian "
+            "opposition when none exists in the current ATO."
+        ),
+    )
+    perf_mig29_outnumbered_radius: int = bounded_int_option(
+        "MiG-29 local force comparison radius (km)",
+        page=MISSION_GENERATOR_PAGE,
+        section=PERFORMANCE_SECTION,
+        default=120,
+        min=40,
+        max=300,
     )
     perf_max_active_units_per_coalition: int = bounded_int_option(
         "Maximum tactical units per coalition",

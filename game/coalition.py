@@ -236,6 +236,14 @@ class Coalition:
                     MissionScheduler(
                         self, self.game.settings.desired_player_mission_duration
                     ).schedule_missions(now)
+        if self.player:
+            from game.playableroster import BluePlayableRoster
+
+            BluePlayableRoster(self.game).ensure(now)
+        else:
+            from game.playableroster import RussianDefensiveRoster
+
+            RussianDefensiveRoster(self.game).ensure(now)
 
     def plan_procurement(self) -> None:
         # The first turn needs to buy a *lot* of aircraft to fill CAPs, so it gets much

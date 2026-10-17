@@ -1,3 +1,26 @@
+# 15.7.0
+
+Saves from 15.6.0 are compatible with 15.7.0.
+
+## Features/Improvements
+
+* **[Player Roster]** Added persistent Client flights for one F-16C, one F-5EM, one AMX A-1M, two A-29B, one carrier-based F/A-18C, one carrier-based A-4E-C, one F-15C, one JF-17, and one AH-64D.
+* **[Mod Support]** Added Liberation aircraft definitions for the installed F-5EM, AMX A-1M, and A-29B Brazilian mods.
+* **[Campaign]** Expanded-roster flights use dedicated persistent squadrons, so aircraft losses and sortie state feed back into the campaign.
+* **[Red AI]** Russia receives a persistent two-aircraft MiG-29S defensive flight when none exists in the current ATO.
+* **[Red AI]** Active MiG-29 groups compare friendly and hostile aircraft within 120 km and retreat to the nearest active Russian SAM when outnumbered.
+
+## Fixes
+
+* **[Mod Support]** Brazilian mod flights use an empty Liberation-side default payload when their custom UnitPayload Lua cannot be parsed, leaving rearm/loadout selection to DCS.
+* **[Mission Generation]** Expanded player-roster aircraft never use off-map spawn points.
+* **[Mission Generation]** The defensive MiG-29 package is prioritized within the existing Russian aircraft budget.
+
+## Known limitations
+
+* The expanded roster only creates slots for Brazilian mods whose matching Saved Games mod directory is installed.
+* MiG-29 retreat is one-way for the current DCS mission; a retreating group remains under SAM cover rather than automatically resuming its original task.
+
 # 15.6.0
 
 Saves from 15.5.0 are compatible with 15.6.0.

@@ -1,0 +1,25 @@
+description: Brazilian AMX A-1M modernized light attack aircraft.
+introduced: 2013
+manufacturer: AMX International/Embraer
+origin: Brazil
+price: 18
+role: Light Attack
+max_range: 250
+default_livery: "5504"
+variants:
+  AMX A-1M: {}
+tasks:
+  BAI: 520
+  BARCAP: 120
+  CAS: 520
+  DEAD: 390
+  Escort: 120
+  Fighter sweep: 120
+  Intercept: 120
+  OCA/Aircraft: 520
+  OCA/Runway: 420
+  SEAD: 180
+  SEAD Escort: 180
+  Strike: 420
+  TARCAP: 120
+hit_points: 18

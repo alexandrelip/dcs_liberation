@@ -1,4 +1,5 @@
 from .a4ec import *
+from .brazilianaircraft import *
 from .f104 import *
 from .f22a import *
 from .f4 import *
